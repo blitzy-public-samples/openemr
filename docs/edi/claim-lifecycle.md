@@ -2,7 +2,7 @@
 
 What happens, in order, from the moment a charge is captured to the moment cash is posted against it, and what changes in the database and on disk when each step runs or fails.
 
-**Scope and sources.** This document decomposes the revenue cycle into fourteen stages and records, for every one of them, the code entry point, the tables read, the tables written, the files produced or consumed, the state transitions and the failure modes together with the symptom an operator actually sees. It is traced from the charge-capture and claim-update paths in `src/Billing/BillingUtilities.php`, the batch pipeline under `src/Billing/BillingProcessor/`, the two claim generators `src/Billing/X125010837P.php` and `src/Billing/X125010837I.php`, the remittance parser `src/Billing/ParseERA.php`, the accounts-receivable poster `src/Billing/SLEOB.php`, the payment recorder `src/PaymentProcessing/Recorder.php`, the boundary screens `interface/billing/sl_eob_process.php` and `interface/billing/era_payments.php`, the legacy index layer in `library/edihistory/`, and the schema in `sql/database.sql`. Every table named here is anchored to its own data definition language statement; every file named here is anchored to the code that composes its path. Conventions, the citation format and the two claim classes are defined once in [README.md](README.md) and are used here without variation. Which generation of the subsystem a given file belongs to, and how the generations reach one another, is the subject of [architecture.md](architecture.md).
+**Scope and sources.** This document decomposes the revenue cycle into fourteen stages and records, for every one of them, the code entry point, the tables read, the tables written, the files produced or consumed, the state transitions and the failure modes together with the symptom an operator actually sees. It is traced from the charge-capture and claim-update paths in `src/Billing/BillingUtilities.php`, the batch pipeline under `src/Billing/BillingProcessor/`, the two claim generators `src/Billing/X125010837P.php` and `src/Billing/X125010837I.php`, the remittance parser `src/Billing/ParseERA.php`, the accounts-receivable poster `src/Billing/SLEOB.php`, the payment recorder `src/PaymentProcessing/Recorder.php`, the boundary screens `interface/billing/sl_eob_process.php` and `interface/billing/era_payments.php`, the legacy electronic data interchange (EDI) history index layer in `library/edihistory/`, and the schema in `sql/database.sql`. Every table named here is anchored to its own data definition language statement; every file named here is anchored to the code that composes its path. Conventions, the citation format and the two claim classes are defined once in [README.md](README.md) and are used here without variation. Which generation of the subsystem a given file belongs to, and how the generations reach one another, is the subject of [architecture.md](architecture.md).
 
 **Provenance.** Every anchor below is relative to branch `master` at head commit `b7a7e690e419de3451740f995b768a8e8e5fba87`, on project version 8.3.0-dev (`version.php:L17-L20`). Nothing was executed to produce this document: PHP and Composer were not installed in the environment in which it was written, so no part of the subsystem was run and no test was invoked. Every claim rests on static reading of file contents at that commit.
 
@@ -50,7 +50,7 @@ Every stage below carries the same six attributes under the same six labels, in 
 | **State transitions** | Which column moves from which value to which value | Both the write and the column's own declaration are anchored |
 | **Failure modes and operator-visible symptoms** | The internal behaviour on failure **and** what a human at the screen actually sees | Both halves are required. Where the answer is that the operator sees nothing, that is written down as the answer rather than omitted |
 
-The second half of the last attribute is the one most often missing from documentation of this kind, and in this subsystem it is frequently the more consequential half. Four verified failure paths are either silent or actively misleading at the screen: a batch run that terminates the request mid-file (`src/Billing/BillingProcessor/BillingClaimBatch.php:L220-L226`), a transport failure that is overwritten with a success status (`src/Billing/BillingProcessor/X12RemoteTracker.php:L112-L121`), a tertiary-payer advance that does nothing and says nothing (`src/Billing/SLEOB.php:L285-L286`), and a remittance rejected in its entirety by a segment whitelist (`src/Billing/ParseERA.php:L467-L468`). Each is set out under its own stage, and each is cross-referenced to [defect-candidates.md](defect-candidates.md), which is where a suspected defect is registered with a verification. This document describes behaviour; it proposes no change to any of it.
+The second half of the last attribute is the one most often missing from documentation of this kind, and in this subsystem it is frequently the more consequential half. Four verified failure paths are either silent or actively misleading at the screen: a batch run that terminates the request mid-file (`src/Billing/BillingProcessor/BillingClaimBatch.php:L220-L226`), a transport failure that is overwritten with a success status (`src/Billing/BillingProcessor/X12RemoteTracker.php:L112-L121`), a tertiary-payer advance that does nothing and says nothing (`src/Billing/SLEOB.php:L285-L286`), and a remittance whose posting is abandoned part-way through by an unrecognised segment, leaving every claim that had already been flushed posted and every later one lost (`src/Billing/ParseERA.php:L467-L468`). Each is set out under its own stage, and each is cross-referenced to [defect-candidates.md](defect-candidates.md), which is where a suspected defect is registered with a verification. This document describes behaviour; it proposes no change to any of it.
 
 ### The X12 vocabulary used in this document
 
@@ -78,7 +78,7 @@ X12 is the electronic data interchange (EDI) standard that United States healthc
 | CAS | Claim or service adjustment | The 835 segment carrying a reduction and its reason, handled at claim level at `src/Billing/ParseERA.php:L269-L295` and at service level at `src/Billing/ParseERA.php:L394-L416` |
 | PLB | Provider level adjustment | An 835 adjustment against the provider rather than a claim, deliberately kept out of accounts receivable at `src/Billing/ParseERA.php:L429-L431` |
 | MIA | Medicare inpatient adjudication information | An 835 segment the legacy renderer understands at `library/edihistory/edih_835_html.php:L531` and the modern parser does not recognise at all |
-| LX | Header number | The 835 segment that opens a service-line group, and one of the four flush points, at `src/Billing/ParseERA.php:L219-L230` |
+| LX | Header number | The 835 segment that opens loop 2000, a logical grouping of claim payment information as the source describes it at `src/Billing/ParseERA.php:L221`, and one of the four flush points, at `src/Billing/ParseERA.php:L219-L230`. Service-line detail is one level further in, at SVC and loop 2110 |
 | BPR | Beginning segment for payment order | The 835 segment carrying the cheque amount and date, at `src/Billing/ParseERA.php:L148-L155` |
 | TRN | Trace | The 835 segment carrying the cheque number, at `src/Billing/ParseERA.php:L156-L165` |
 | NM1 | Individual or organizational name | Party identification; the qualifier in its first element decides whose name it is, as at `src/Billing/ParseERA.php:L296-L316` |
@@ -89,6 +89,7 @@ X12 is the electronic data interchange (EDI) standard that United States healthc
 | TA1 | Interchange acknowledgement | The interchange-level receipt inside a 997 or 999, read at `library/edihistory/edih_997_error.php:L69-L80` |
 | IK3 and AK3 | Implementation and functional data segment note | The element identifying which segment a payer rejected, read at `library/edihistory/edih_997_error.php:L102-L117` |
 | A/R | Accounts receivable | What is owed and by whom; the two tables that hold it are `ar_session` (`sql/database.sql:L10158`) and `ar_activity` (`sql/database.sql:L10188`) |
+| SFTP | Secure File Transfer Protocol | The file-transfer mechanism by which a batch reaches a clearinghouse in [S6](#stage-s6-transport-to-the-clearinghouse); the six partner fields it requires are listed at `src/Billing/BillingProcessor/X12RemoteTracker.php:L35-L42` |
 
 ### Where the stage numbers come from
 
@@ -115,7 +116,7 @@ VERIFIED: the remittance staging directory is a sibling of the outbound director
 
 ## The Revenue Cycle End to End
 
-The following diagram answers one question: in what order do the fourteen stages run, and where does the flow leave one process and resume in another. Solid arrows are in-process calls; the dashed arrows are the three places where the flow stops and waits for something outside the request. The prose under each stage below carries the citations; this diagram carries none, by the convention that a node label is a name rather than evidence.
+The following diagram answers one question: in what order do the fourteen stages run, and where does the flow leave one process and resume in another. Solid arrows are the forward progression the pipeline is built to follow. Dashed arrows are discontinuities: nothing in the documented surface advances the flow across them, and it resumes only when something outside the current request happens. There are seven, of two kinds - three payer responses that arrive as uploaded files, and four operator actions in the EDI History screen, which is the only thing in the subsystem that ever triggers indexing or reads the index back. The prose under each stage below carries the citations; this diagram carries none, by the convention that a node label is a name rather than evidence.
 
 ```mermaid
 flowchart TB
@@ -147,10 +148,10 @@ flowchart TB
     S10 --> S11
     S11 --> S12
     S12 --> S2
-    S5 --> S13
-    S7 --> S13
-    S8 --> S13
-    S13 --> S8
+    S5 -. "operator requests indexing" .-> S13
+    S7 -. "operator requests indexing" .-> S13
+    S8 -. "operator requests indexing" .-> S13
+    S13 -. "operator opens a claim's history" .-> S8
 ```
 
 Three features of that shape are verified rather than schematic, and each is the reason a stage below reads the way it does.
@@ -159,7 +160,7 @@ VERIFIED: the arrow from S12 back to S2 is a real cycle, not a convenience. The 
 
 VERIFIED: the three dashed arrows out of S6 are not alternatives that the code chooses between. Nothing in the documented surface polls for or requests any of the three inbound file types. All three arrive because an operator uploads a file, through the EDI History upload handler at `interface/billing/edih_main.php:L149-L151` for acknowledgements and status notifications, and through the remittance intake screen at `interface/billing/era_payments.php:L117-L173` for remittances.
 
-VERIFIED: S13 both consumes and feeds S8. The indexer reads whatever files are present and writes index rows (`library/edihistory/edih_io.php:L254-L257`), and the operator screens then read those index rows back to display a claim's history (`library/edihistory/edih_csv_data.php:L291`). The double arrow is the index being written and then queried, not two different flows.
+VERIFIED: the four dashed arrows touching S13 are dashed for the same reason as the three out of S6 - nothing advances them but an operator. Indexing runs only when the EDI History screen receives an explicit request, dispatched at `interface/billing/edih_main.php:L232-L237`, so a batch file written in S5 or an acknowledgement filed in S7 can sit unindexed indefinitely. The indexer then reads whatever files are present and writes index rows (`library/edihistory/edih_io.php:L254-L257`), and the operator screens read those rows back to display a claim's history (`library/edihistory/edih_csv_data.php:L291`). The pair of arrows between S13 and S8 is the index being written and then queried, not two different flows.
 
 ## Stage S0 Encounter and Fee Sheet Entry
 
@@ -217,7 +218,15 @@ This stage is read-only. It is included as a stage rather than folded into S3 be
 
 **State transitions.** None. What this stage produces is a form submission, and the shape of that submission is the one piece of it a later stage depends on. VERIFIED: the form posts to the batch entry point at `interface/billing/billing_report.php:L743`, each selected claim is keyed patient-first as the patient identifier, a hyphen and the encounter identifier at `interface/billing/billing_report.php:L952`, and the payer for each claim is carried in a select element named `payer` at `interface/billing/billing_report.php:L1119`. The five submit buttons that reach the pipeline are `bn_mark` at `interface/billing/billing_report.php:L762` and `interface/billing/billing_report.php:L832`, `bn_x12` at `interface/billing/billing_report.php:L768`, `bn_x12_encounter` at `interface/billing/billing_report.php:L782` and `bn_reopen` at `interface/billing/billing_report.php:L835`.
 
-**Failure modes and operator-visible symptoms.** The failure mode of a selection query is invisibility, and this one has a specific and consequential blind spot. VERIFIED: the claim lookup that the update path uses is restricted to `status > 0 AND status < 4` at `src/Billing/BillingUtilities.php:L1539-L1548`, so a claim whose status has reached 4 or above is not returned by it. Combined with the status vocabulary documented under [Claim Status Transitions](#claim-status-transitions), in which 4 and 5 have no writer at all in the documented surface, this means the queue and the update path disagree about what exists. The operator sees nothing: an encounter simply does not appear in the list, or appears without the prior-claim context that would explain its state, and no message distinguishes "not billable" from "filtered out". Diagnosing it requires querying `claims` directly. This is registered as a defect candidate in [defect-candidates.md](defect-candidates.md).
+**Failure modes and operator-visible symptoms.** Three. The characteristic failure mode of a selection query is invisibility, and two of these three are silent; the third is the most abrupt symptom in the whole screen.
+
+Internally, the charge join is outer and its predicates sit in the join condition rather than in the where clause. VERIFIED: `billing` is joined with `LEFT OUTER JOIN` and the code-type pattern and `activity = 1` are both part of the `ON` condition, at `src/Billing/BillingReport.php:L138-L142`. An encounter with no matching charge row therefore still comes back, with every `billing.*` column null. The operator sees a row whose charge columns are blank, and nothing on the screen distinguishes an encounter that was never charged from one whose charges were all voided by setting `billing.activity` to 0, declared at `sql/database.sql:L266`. Both look identical, and both look like the encounter is simply not ready to bill.
+
+Internally, the screen offers two date windows and its own source says one of them is the wrong one to use. VERIFIED: the criteria list presents "Date of Service" and "Date of Entry" as adjacent choices, mapped to `form_encounter.date` and `billing.date` respectively at `interface/billing/billing_report.php:L654-L657` and `interface/billing/billing_report.php:L670`, and the builder implements both, at `src/Billing/BillingReport.php:L79-L85` for the encounter date and `src/Billing/BillingReport.php:L86-L92` for the charge date. VERIFIED: the comment immediately above the selecting statement, at `src/Billing/BillingReport.php:L131-L133`, states that selecting by the date in the charge table is wrong because that column is only the data-entry date. Nothing on the screen repeats that warning. VERIFIED: the default is the safe one - a first load with no mode parameter sets "Date of Service = Today" at `interface/billing/billing_report.php:L722-L724`, alongside "Billing Status = Unbilled" at `interface/billing/billing_report.php:L725-L726`. The operator sees no symptom at all: a charge keyed weeks after the visit is present under one date window and absent under the other, both windows are labelled plausibly, and no message says which one the code considers correct. VERIFIED: one of the three fragments the statement interpolates is inert and can filter nothing. `$auth` is reset to the empty string at `src/Billing/BillingReport.php:L36` by the builder that every one of these methods calls first, and no statement anywhere assigns it again, so the fragment interpolated at `src/Billing/BillingReport.php:L146` is always empty.
+
+Internally, an unrecognised search criterion terminates the request. VERIFIED: any criterion the builder does not match by name falls to the final else at `src/Billing/BillingReport.php:L100`, where its column and comparison are passed through `escape_identifier()` against six-item and two-item whitelists at `src/Billing/BillingReport.php:L102-L114` with the die-if-no-match argument set true. VERIFIED: that argument makes a miss fatal. `escape_identifier()` writes to the error log and calls `die()` at `library/formdata.inc.php:L229-L230`. The operator sees the Billing Manager page stop mid-render at a red sentence, "There was an OpenEMR SQL Escaping ERROR of the following string" followed by the rejected text, with no list, no navigation and no billing-specific explanation.
+
+One restriction that is easy to attribute to this stage belongs to another. VERIFIED: the claim lookup bounded by `status > 0 AND status < 4` is in the claim updater, at `src/Billing/BillingUtilities.php:L1539-L1540`, not in this screen's query, and what it makes invisible is documented where it executes, under [S4](#stage-s4-claim-generation). VERIFIED: the selection query here applies no status restriction of any kind - it joins `claims` unrestricted at `src/Billing/BillingReport.php:L144`, so a claim the updater cannot find is still listed on this screen.
 
 ## Stage S3 Batch Pipeline Dispatch
 
@@ -293,7 +302,7 @@ Internally, a submission carrying none of the thirteen recognised button names l
 
 Both generators load their data through one object. VERIFIED: each begins by constructing `Claim`, at `src/Billing/X125010837P.php:L53` and `src/Billing/X125010837I.php:L30`, and that constructor performs the stage's entire read phase in a fixed order at `src/Billing/Claim.php:L63-L91`. Segment-level detail for either transaction, including which element carries what, is in [transactions.md](transactions.md); this stage records what the generation touches.
 
-**Tables read.** Thirteen, all through the claim model unless noted, and a fourteenth on the institutional path only.
+**Tables read.** Thirteen in building the claim, all through the claim model unless noted, plus a fourteenth on the institutional path only and a fifteenth on the write path. The fourteenth and fifteenth follow the table.
 
 | Table | Read at | DDL |
 |-------|---------|-----|
@@ -312,11 +321,13 @@ Both generators load their data through one object. VERIFIED: each begins by con
 
 One further table is read by the institutional generator only, and it is the sole reference to it anywhere in the documented surface. VERIFIED: `codes` (`sql/database.sql:L1124`) is queried inside a per-service-line loop at `src/Billing/X125010837I.php:L988-L998`, by the statement at `src/Billing/X125010837I.php:L993`, which orders by revenue code descending and is bound with a code type derived at `src/Billing/X125010837I.php:L991` and the procedure code at `src/Billing/X125010837I.php:L992`. Being inside the loop, it issues one query per service line rather than one per claim.
 
+A fifteenth table is read on this stage's write path rather than in building the claim, which is why the matrix marks it as read here as well as written. VERIFIED: both updater calls read `claims` (`sql/database.sql:L378`) before they write it. The first pass runs the version aggregate at `src/Billing/BillingUtilities.php:L1679` in order to allocate a version number, and the second pass runs the existing-claim lookup at `src/Billing/BillingUtilities.php:L1539-L1548` in order to find the row it will update in place.
+
 **Tables written.** Three, all through the claim updater and all called by the generating task rather than by the generator itself. VERIFIED: `GeneratorX12` calls the updater twice per claim - once before generating, at `src/Billing/BillingProcessor/Tasks/GeneratorX12.php:L151-L162`, and once after, at `src/Billing/BillingProcessor/Tasks/GeneratorX12.php:L168`. The first call marks the claim billed and in progress; the second records the batch filename. The written tables are `claims` (insert, at `src/Billing/BillingUtilities.php:L1688` or `src/Billing/BillingUtilities.php:L1698`), `billing` (update, at `src/Billing/BillingUtilities.php:L1648-L1649`) and `form_encounter` (update, at `src/Billing/BillingUtilities.php:L1722-L1724`).
 
 The institutional generator writes one extra thing into the claim row. VERIFIED: it serialises the 428-element institutional form array and passes it as the submitted-claim argument, at `src/Billing/BillingProcessor/Tasks/GeneratorUB04X12.php:L80` and again at `src/Billing/BillingProcessor/Tasks/GeneratorUB04X12.php:L112-L125`, which the updater appends to the claim set at `src/Billing/BillingUtilities.php:L1653` and writes into `claims.submitted_claim`, declared as `text` at `sql/database.sql:L391`. The array is padded to 428 entries at `src/Billing/X125010837I.php:L33-L37`.
 
-**Files produced or consumed.** None directly. VERIFIED: both generators return a string and write nothing; the only filesystem write on the outbound path is in [S5](#stage-s5-envelope-post-processing). The one variant that creates a directory does so during setup rather than generation: `GeneratorX12Direct` creates each partner's local directory at `src/Billing/BillingProcessor/Tasks/GeneratorX12Direct.php:L102` if it is absent.
+**Files produced or consumed.** None directly. VERIFIED: both generators return a string and write nothing; the only write of batch *content* on the outbound path is in [S5](#stage-s5-envelope-post-processing). The outbound path does make one other filesystem change, and it creates a directory rather than a file: `GeneratorX12Direct::setup()` iterates every trading partner at `src/Billing/BillingProcessor/Tasks/GeneratorX12Direct.php:L90-L91` and, where the partner's configured local directory is set but does not exist, calls `mkdir()` on it recursively at `src/Billing/BillingProcessor/Tasks/GeneratorX12Direct.php:L102`. VERIFIED: that happens during setup, before any claim is generated, and its result decides where the batch is written - the batch directory is overridden to the partner's directory only when the directory is present or was successfully created, at `src/Billing/BillingProcessor/Tasks/GeneratorX12Direct.php:L114-L116`. Where it is not, the batch keeps the default directory from the batch constructor and the operator is told, by the line "Could not create directory for X12 partner" with the partner name at `src/Billing/BillingProcessor/Tasks/GeneratorX12Direct.php:L104` or "No directory for X12 partner" at `src/Billing/BillingProcessor/Tasks/GeneratorX12Direct.php:L96`. That divergence is what [S6](#stage-s6-transport-to-the-clearinghouse) has to reconcile.
 
 **State transitions.** Seven columns move across two passes, and the relationship between those passes is the fact a reader most needs.
 
@@ -340,7 +351,11 @@ VERIFIED: the institutional generator writes a different target string. It passe
 
 Internally, a claim with no billable charges is reported by the generator into the log string rather than by aborting: `src/Billing/X125010837P.php:L670` appends the line "*** This claim has no charges!" and generation continues. The operator sees that line in the results list at `interface/billing/billing_process.php:L52`, and the claim is nevertheless marked billed, because the marking call at `src/Billing/BillingProcessor/Tasks/GeneratorX12.php:L151-L162` runs before generation at `src/Billing/BillingProcessor/Tasks/GeneratorX12.php:L165` and is not conditional on its result.
 
-Internally, the second updater call is tested and its failure is reported: the branch at `src/Billing/BillingProcessor/Tasks/GeneratorX12.php:L168-L169` prints "Internal error: claim" and the claim identifier and "not found!" when the update does not match a row. The operator sees that line. VERIFIED: nothing rolls back the first call, so a claim can be marked billed with its batch filename never recorded, which is exactly the state that makes a claim untraceable from the screen at `interface/billing/billing_report.php:L1227-L1230`, where the file link is rendered only when the process timestamp is present.
+Internally, the second updater call is tested and its failure is reported: the branch at `src/Billing/BillingProcessor/Tasks/GeneratorX12.php:L168-L169` prints "Internal error: claim" and the claim identifier and "not found!" when the update does not match a row. The operator sees that line.
+
+VERIFIED: what makes that call able to miss is a status window, not an absent row. Passing false as the first argument sends the updater down the lookup path at `src/Billing/BillingUtilities.php:L1539-L1548`, which is restricted to `status > 0 AND status < 4`, takes only the highest version, and returns 0 at `src/Billing/BillingUtilities.php:L1550` when nothing matches - before writing anything. A claim whose most recent version carries a status outside that window is therefore invisible to every update the pipeline makes without creating a version, while remaining fully visible to the selection query in [S2](#stage-s2-claim-selection-and-queueing), which applies no status restriction. Four of the six status values in the vocabulary recorded under [Claim Status Transitions](#claim-status-transitions) sit outside that window: 4 and 5, which have no writer anywhere in the documented surface, and 6 and 7, which do. A claim left at the denied value 7 by [S11](#stage-s11-accounts-receivable-posting), or at the forwarded value 6 by [S12](#stage-s12-secondary-and-tertiary-payer-setup), is therefore outside that lookup's reach. VERIFIED: inside a generation run this does not bite, because the first pass has already inserted a version at the billed value before the second pass looks anything up. It bites where a caller asks only for an in-place update, with no insert ahead of it. VERIFIED: six call sites test that return value and print the message - `src/Billing/BillingProcessor/Tasks/GeneratorX12.php:L168`, `src/Billing/BillingProcessor/Tasks/GeneratorX12Direct.php:L195`, `src/Billing/BillingProcessor/Tasks/GeneratorHCFA.php:L85-L86`, `src/Billing/BillingProcessor/Tasks/GeneratorHCFA_PDF.php:L128-L129`, `src/Billing/BillingProcessor/Tasks/GeneratorUB04NoForm.php:L54` and `src/Billing/BillingProcessor/Tasks/GeneratorUB04Form_PDF.php:L73`. Two do not: the institutional disposal screen discards the return at `interface/billing/ub04_dispose.php:L50` and `interface/billing/ub04_dispose.php:L95`, so there the update is skipped in silence and the operator sees nothing. This is registered as a defect candidate in [defect-candidates.md](defect-candidates.md).
+
+VERIFIED: nothing rolls back the first call, so a claim can be marked billed with its batch filename never recorded, which is exactly the state that makes a claim untraceable from the screen at `interface/billing/billing_report.php:L1227-L1230`, where the file link is rendered only when the process timestamp is present.
 
 Internally, the validate-and-clear action marks claims billed and writes no file. VERIFIED: the action dispatch at `src/Billing/BillingProcessor/Tasks/AbstractGenerator.php:L44-L60` routes that action to `validateAndClear()`, which at `src/Billing/BillingProcessor/Tasks/GeneratorX12.php:L120-L138` performs the same marking call as the normal path and appends the claim to the in-memory batch, and the completion dispatch at `src/Billing/BillingProcessor/Tasks/AbstractGenerator.php:L76-L93` then routes to `completeToScreen()` rather than to `completeToFile()`. VERIFIED: `completeToScreen()` at `src/Billing/BillingProcessor/Tasks/GeneratorX12.php:L181-L189` closes the envelope, replaces the segment terminators with line breaks at `src/Billing/BillingProcessor/Tasks/GeneratorX12.php:L186` and echoes the result at `src/Billing/BillingProcessor/Tasks/GeneratorX12.php:L188`, while `completeToFile()` at `src/Billing/BillingProcessor/Tasks/GeneratorX12.php:L199-L218` is the only path that calls the file writer, at `src/Billing/BillingProcessor/Tasks/GeneratorX12.php:L202`. The operator sees the claim text on screen and the line "Successfully marked claim" with the identifier and "as billed" from `src/Billing/BillingProcessor/Tasks/GeneratorX12.php:L137`, which is accurate; what is not stated anywhere on screen is that no file exists. VERIFIED: the claim row afterwards has no batch filename and no process timestamp, because the marking call passes an empty process file at `src/Billing/BillingProcessor/Tasks/GeneratorX12.php:L130` and the writer only appends those two columns when that argument is non-empty, at `src/Billing/BillingUtilities.php:L1615-L1619`. The screen therefore shows a claim marked billed with no file link, because the link is rendered only when the process timestamp is present at `interface/billing/billing_report.php:L1227-L1228`. Whether that is intended or a trap is registered in [defect-candidates.md](defect-candidates.md).
 
@@ -374,7 +389,7 @@ VERIFIED: the two control numbers come from a shared database sequence, and vali
 
 **Tables written.** One, and only when the site-level automatic-upload global is set. VERIFIED: `write_batch_file()` inserts one `x12_remote_tracker` row per distinct trading partner in the batch, at `src/Billing/BillingProcessor/BillingClaimBatch.php:L177-L184`, through `X12RemoteTracker::create()` at `src/Billing/BillingProcessor/X12RemoteTracker.php:L141-L147` and the insert at `src/Billing/BillingProcessor/X12RemoteTracker.php:L152`. The four columns it sets - `x12_partner_id`, `x12_filename`, `status` and `claims` - are declared at `sql/database.sql:L14151-L14154`, and `create()` adds the two timestamps declared at `sql/database.sql:L14156-L14157`. The row's subsequent lifecycle is stage [S6](#stage-s6-transport-to-the-clearinghouse), which is why the matrix attributes the reads and updates of that table to S6 and only the insert to this stage.
 
-**Files produced or consumed.** One file, and this is the only place on the outbound path that anything is written to disk.
+**Files produced or consumed.** One file, and this is the only place on the outbound path that batch content is written to disk. The only other outbound filesystem change is the directory creation in [S4](#stage-s4-claim-generation)'s setup, at `src/Billing/BillingProcessor/Tasks/GeneratorX12Direct.php:L102`, which creates no file.
 
 | Artifact | Directory | Named at | Written at |
 |----------|-----------|----------|------------|
@@ -405,7 +420,11 @@ VERIFIED: this stage does not run in the batch request. Its only caller is `libr
 
 **Tables written.** One: `x12_remote_tracker`, by the update at `src/Billing/BillingProcessor/X12RemoteTracker.php:L170`, reached from `update()` at `src/Billing/BillingProcessor/X12RemoteTracker.php:L163-L176`. The two columns it moves are `status` and `messages`, declared at `sql/database.sql:L14153` and `sql/database.sql:L14155`.
 
-**Files produced or consumed.** One consumed, none produced locally. VERIFIED: the file to send is composed from the partner's local directory and the queued filename at `src/Billing/BillingProcessor/X12RemoteTracker.php:L75`, with a fallback to the site's outbound directory at `src/Billing/BillingProcessor/X12RemoteTracker.php:L77` when the partner has no local directory configured. The upload itself is the call at `src/Billing/BillingProcessor/X12RemoteTracker.php:L112`. Nothing is written to the local filesystem by this stage, and nothing is deleted: the batch file remains in place after a successful send, which is what leaves it available to [S13](#stage-s13-edi-history-indexing).
+**Files produced or consumed.** One consumed, none produced locally. VERIFIED: the path to send is the partner's configured local directory concatenated directly with the queued filename, at `src/Billing/BillingProcessor/X12RemoteTracker.php:L75`, and if nothing exists at that path it is recomposed as the site's outbound directory plus the same filename at `src/Billing/BillingProcessor/X12RemoteTracker.php:L77`. The contents are read at `src/Billing/BillingProcessor/X12RemoteTracker.php:L80` and the upload is the call at `src/Billing/BillingProcessor/X12RemoteTracker.php:L112`, which sends them under the bare filename. Nothing is written to the local filesystem by this stage, and nothing is deleted: the batch file remains in place after a successful send, which is what leaves it available to [S13](#stage-s13-edi-history-indexing).
+
+VERIFIED: that second path is not the unconfigured-directory case, because a partner with no local directory configured never reaches it. The local directory is one of the six required partner fields listed at `src/Billing/BillingProcessor/X12RemoteTracker.php:L35-L42`, and `validateSFTPCredentials()` at `src/Billing/BillingProcessor/X12RemoteTracker.php:L128-L139` fails each of the six on an `empty()` test at `src/Billing/BillingProcessor/X12RemoteTracker.php:L133`. VERIFIED: that validation is the first thing the loop does, at `src/Billing/BillingProcessor/X12RemoteTracker.php:L62`, and on failure the row is set to `parameter-error`, has the message "`X12 SFTP Local Dir` is required" appended, is persisted, and the iteration ends with `continue` at `src/Billing/BillingProcessor/X12RemoteTracker.php:L64-L70`. No path is composed, no file is read, no login is attempted and no upload occurs. The order of operations is therefore: validate all six partner fields, then locate the file, then send.
+
+VERIFIED: what the fallback actually covers is a configured directory that does not contain the file, and there are two routes to that state. The first is a divergence created in [S4](#stage-s4-claim-generation): the single-file generator never overrides the batch directory, so its file is written to the batch constructor's default at `src/Billing/BillingProcessor/BillingClaimBatch.php:L65`, which is the site's outbound directory, while the queue row it produced carries a partner whose configured local directory is somewhere else. The only caller of the override is the per-insurer generator, at `src/Billing/BillingProcessor/Tasks/GeneratorX12Direct.php:L115`. The second route is a configured directory string without a trailing separator, because `src/Billing/BillingProcessor/X12RemoteTracker.php:L75` joins the directory and the filename with nothing between them. Both are registered in [defect-candidates.md](defect-candidates.md); together they are why the fallback is load-bearing rather than merely defensive.
 
 **State transitions.** `x12_remote_tracker.status` moves through a vocabulary of eight values, declared as constants at `src/Billing/BillingProcessor/X12RemoteTracker.php:L24-L31`.
 
@@ -422,11 +441,11 @@ VERIFIED: this stage does not run in the batch request. Its only caller is `libr
 
 VERIFIED: the upload-error constant is declared under a misspelled name at `src/Billing/BillingProcessor/X12RemoteTracker.php:L30` - the identifier is `STATUS_UPLOAD_ERRROR`, carrying three consecutive letters R where two belong - and is used under that same name on the failure path at `src/Billing/BillingProcessor/X12RemoteTracker.php:L113`. The stored value is unaffected, because the string literal the constant holds is correct. It is registered as a defect candidate in [defect-candidates.md](defect-candidates.md) rather than as a contradiction, because it is a code identifier and not descriptive text.
 
-**Failure modes and operator-visible symptoms.** Five of the six failure statuses above behave correctly: each sets its status, appends a message and returns or continues. One does not, and it is the most consequential failure mode in this document.
+**Failure modes and operator-visible symptoms.** Of the eight statuses in the table above, five are error statuses: `parameter-error`, `claim-file-error`, `login-error`, `chdir-error` and `upload-error`. VERIFIED: four of the five are retained. Each of those four sets its status, appends its messages, persists the row and ends the iteration with `continue`, at `src/Billing/BillingProcessor/X12RemoteTracker.php:L64-L70`, `src/Billing/BillingProcessor/X12RemoteTracker.php:L82-L85`, `src/Billing/BillingProcessor/X12RemoteTracker.php:L92-L96` and `src/Billing/BillingProcessor/X12RemoteTracker.php:L100-L104`. VERIFIED: the fifth is overwritten. `upload-error` is the only one of the five whose branch does not `continue`, so the status it persisted is replaced by a success status two statements later - and that is the most consequential failure mode in this document.
 
 VERIFIED, line by line: the upload result is tested at `src/Billing/BillingProcessor/X12RemoteTracker.php:L112`; the failure branch sets the upload-error status at `src/Billing/BillingProcessor/X12RemoteTracker.php:L113`, appends the message "Could not upload file." at `src/Billing/BillingProcessor/X12RemoteTracker.php:L114`, merges the transport library's own errors at `src/Billing/BillingProcessor/X12RemoteTracker.php:L115` and persists the row at `src/Billing/BillingProcessor/X12RemoteTracker.php:L116`; the branch then closes at `src/Billing/BillingProcessor/X12RemoteTracker.php:L117` with no `else` and no `return`. Execution continues to `src/Billing/BillingProcessor/X12RemoteTracker.php:L120`, which assigns the success status unconditionally, and `src/Billing/BillingProcessor/X12RemoteTracker.php:L121`, which persists it. The upload-error row written one statement earlier is overwritten by a success row.
 
-The operator sees a delivered transmission. The Claim File Tracker screen, which `src/Billing/BillingProcessor/Tasks/GeneratorX12Direct.php:L284-L286` names to the operator as the place to check status, reads the same rows through `fetchAll()` at `src/Billing/BillingProcessor/X12RemoteTracker.php:L207-L215`, so an undelivered file is displayed with the success status. The failure message is not lost - it remains in the `messages` column, because the failure branch persisted it before the success assignment overwrote only the status - but nothing on the success path draws attention to it. There is no second signal anywhere: the claim rows still carry the billed status and the batch filename written in S4, so the Billing Manager also shows the claim as generated and sent.
+The operator sees a delivered transmission. The Claim File Tracker screen, which `src/Billing/BillingProcessor/Tasks/GeneratorX12Direct.php:L284-L286` names to the operator as the place to check status, reads the same rows through `fetchAll()` at `src/Billing/BillingProcessor/X12RemoteTracker.php:L207-L215`, so an undelivered file is displayed with the success status. The failure message is not lost - it remains in the `messages` column, because the failure branch persisted it before the success assignment overwrote only the status - but nothing on the success path draws attention to it. There is no second signal anywhere, and it is worth being exact about what the second screen does and does not claim. VERIFIED: the Billing Manager reports generation, not delivery. Because the claim rows still carry the billed status and the batch filename written in [S4](#stage-s4-claim-generation), the screen renders the line "Claim was generated to file" followed by a link to the batch, at `interface/billing/billing_report.php:L1227-L1228`, and that is the strongest statement it makes about the file anywhere. It has no knowledge of `x12_remote_tracker` at all. So the two screens between them say "generated to file" and "success", the first of which is true and the second of which is not, and no screen in the system says "sent" in those words.
 
 VERIFIED: the comment immediately above the success assignment, at `src/Billing/BillingProcessor/X12RemoteTracker.php:L119`, describes a change from waiting to in-progress, which is not what the next line does; the identical comment is correct twelve lines earlier at `src/Billing/BillingProcessor/X12RemoteTracker.php:L107-L108`, where it does sit above the in-progress assignment. That is one row of the contradiction census in [README.md](README.md). The behaviour itself is a CRITICAL entry in [defect-candidates.md](defect-candidates.md).
 
@@ -457,7 +476,7 @@ sequenceDiagram
         BP->>GEN: execute
         GEN->>DB: updateClaim mark billed and in progress
         GEN->>X837: genX12837P
-        X837->>CLAIM: construct and read ten tables
+        X837->>CLAIM: construct and read the claim tables
         CLAIM-->>X837: claim data
         X837-->>GEN: segment string
         GEN->>BATCH: append_claim rewrites ISA GS ST BHT SE
@@ -488,7 +507,7 @@ The typing decision is worth recording because it determines which directory the
 
 **Tables read.** None.
 
-**Tables written.** None. This is the headline fact of the stage and it has a direct consequence: a payer rejecting a claim at the syntactic level changes nothing in `claims`, nothing in `billing` and nothing in `form_encounter`. The claim continues to read as billed and sent. VERIFIED: the entire 14,979-line legacy tree that owns this path issues exactly one database query, at `library/edihistory/edih_io.php:L737`, and that query reads `ar_session` for a payment reference and serves only the remittance-posted display at `library/edihistory/edih_io.php:L729`. It is not on the acknowledgement path at all.
+**Tables written.** None. This is the headline fact of the stage and it has a direct consequence: a payer rejecting a claim at the syntactic level changes nothing in `claims`, nothing in `billing` and nothing in `form_encounter`. The claim continues to read as billed, and the Billing Manager keeps showing the line "Claim was generated to file" with its batch link, at `interface/billing/billing_report.php:L1227-L1228` - a statement about generation that a rejection does not contradict, because no screen in the system reports delivery from anything other than the tracker row described in [S6](#stage-s6-transport-to-the-clearinghouse). VERIFIED: the entire 14,979-line legacy tree that owns this path issues exactly one database query, at `library/edihistory/edih_io.php:L737`, and that query reads `ar_session` for a payment reference and serves only the remittance-posted display at `library/edihistory/edih_io.php:L729`. It is not on the acknowledgement path at all.
 
 **Files produced or consumed.** Three artifacts and two directories.
 
@@ -512,7 +531,7 @@ The values the acknowledgement carries, and where each is read, are the substanc
 | AK3 or IK3, data segment note | The identifier, position and loop of the offending segment, and the error code | `library/edihistory/edih_997_error.php:L102-L117` |
 | CTX, context | The segment and element context, and the patient account number when the context is a trigger | `library/edihistory/edih_997_error.php:L119-L136` |
 | AK4 or IK4, data element note | The element position and its error code | `library/edihistory/edih_997_error.php:L138-L146` |
-| AK5 or IK5, transaction set response trailer | The per-transaction accept or reject decision and up to five reason codes | `library/edihistory/edih_997_error.php:L148-L162` |
+| AK5 or IK5, transaction set response trailer | One acknowledgement code, which is the accept-or-reject decision itself, read at `library/edihistory/edih_997_error.php:L151`, followed by up to four syntax-error codes read at `library/edihistory/edih_997_error.php:L152-L155` | `library/edihistory/edih_997_error.php:L148-L162` |
 | AK9, functional group response trailer | The group-level accept or reject decision plus the counts received and accepted | `library/edihistory/edih_997_error.php:L164-L186` |
 
 VERIFIED: the group-level accept-or-reject flag is the first element of AK9, read at `library/edihistory/edih_997_error.php:L175`, whose own comment records the two values it can take; the counts of transaction sets included, received and accepted follow at `library/edihistory/edih_997_error.php:L176-L178`. Segment-level notes beyond this belong to [transactions.md](transactions.md).
@@ -549,7 +568,7 @@ VERIFIED: the per-transaction rendering is where this stage crosses a generation
 
 Internally, a status file that cannot be parsed produces a message string rather than an exception: `library/edihistory/edih_277_html.php:L279-L282` returns the filename followed by a parse-error phrase, and an envelope that cannot be read returns the string built at `library/edihistory/edih_277_html.php:L292`. The operator sees that sentence in place of the status table, and it names the file.
 
-Internally, a lookup by trace that finds nothing is reported: `library/edihistory/edih_io.php:L470-L471` builds a message naming the trace and the type it searched, and logs the same text. The operator sees "Did not find" followed by the trace value and the table searched. VERIFIED: this is the only place in the status path that distinguishes "the payer never answered" from "the answer was never uploaded", and it does not distinguish them either - both produce the same sentence.
+Internally, a lookup by trace that finds nothing is reported: `library/edihistory/edih_io.php:L470-L471` builds a message naming the trace and the type it searched, and logs the same text. The operator sees "Did not find" followed by the trace value and the table searched. VERIFIED: that one sentence is everything the status path says about a missing answer, and it conflates two entirely different situations. A payer that never answered and an answer that was never uploaded into the index both leave the same trace absent from the same table, so both reach `library/edihistory/edih_io.php:L470` and both produce that identical sentence. Nothing in the message, the log line at `library/edihistory/edih_io.php:L471`, or anywhere else on the screen separates them, and because [S7](#stage-s7-acknowledgement-intake) and this stage write no table, there is no stored state a reader could consult to tell them apart either.
 
 Internally, no status information is ever reconciled against the claim. Because this stage writes nothing, a 277 saying a claim was rejected leaves `claims.status` at whatever the generation stage set, which for a normal run is the billed value 2 from `src/Billing/BillingProcessor/Tasks/GeneratorX12.php:L157`. The operator sees a billed claim on every screen except the history browser, and sees the rejection only by opening the specific status file. There is no queue, no flag and no message anywhere else in the application. The one status the application does record from a payer statement is recorded by the remittance path instead, in [S11](#stage-s11-accounts-receivable-posting), where a denial code drives a write at `interface/billing/sl_eob_process.php:L395`.
 
@@ -559,7 +578,9 @@ An 835 is the payer's remittance advice: what it paid, on which claims, at which
 
 **Entry point.** `interface/billing/era_payments.php`, whose upload branch opens at `interface/billing/era_payments.php:L117`. Access is gated first, at `interface/billing/era_payments.php:L37-L39`, on write permission for either billing or explanation-of-benefits posting.
 
-VERIFIED: the file is parsed before it is stored, and the parse exists only to name it. `interface/billing/era_payments.php:L144` calls the remittance parser against the temporary upload path, passing a callback declared at `interface/billing/era_payments.php:L61`; that callback composes the storage name at `interface/billing/era_payments.php:L65-L66` out of three values the parser lifted from the envelope - the functional group date, the interchange control number with leading zeros stripped, and the payer identifier with leading zeros stripped. The destination path is only built afterwards, at `interface/billing/era_payments.php:L156`. A file therefore cannot be stored until it has been read end to end, and the name it gets is a property of its contents rather than of what the operator called it.
+VERIFIED: the file is parsed before it is stored, and the parse exists only to name it. `interface/billing/era_payments.php:L144` calls the remittance parser against the temporary upload path, passing a callback declared at `interface/billing/era_payments.php:L61`; that callback composes the storage name at `interface/billing/era_payments.php:L65-L66` out of three values the parser lifted from the envelope - the functional group date, the interchange control number with leading zeros stripped, and the payer identifier with leading zeros stripped. The destination path is only built afterwards, at `interface/billing/era_payments.php:L156`. The name a stored file gets is therefore a property of its contents rather than of what the operator called it.
+
+VERIFIED: a completed parse is not a precondition for storage. The storage block runs from `interface/billing/era_payments.php:L150` to `interface/billing/era_payments.php:L171`, entirely outside the parse guard at `interface/billing/era_payments.php:L143-L148`, and the parse result is only appended to the alert text at `interface/billing/era_payments.php:L145-L147` - it is never tested to decide whether to store. Three cases therefore all reach the rename at `interface/billing/era_payments.php:L170`: a parse that read the file end to end, a parse that returned an error string part-way through, and a parse that was suppressed before it began by an unreadable compressed upload at `interface/billing/era_payments.php:L131-L141`. What differs between them is only how much of the name the parser managed to supply, and the two failure paths that follow from a name it could not supply are recorded under failure modes below.
 
 The same callback also accumulates a search predicate. VERIFIED: for each claim in the file it resolves the internal claim key at `interface/billing/era_payments.php:L67` and, when both halves resolve, appends an escaped disjunct to a growing `WHERE` fragment at `interface/billing/era_payments.php:L69-L72`, which the screen later uses to list the encounters the remittance touches.
 
@@ -625,7 +646,7 @@ A flush point is a segment whose arrival means the claim currently being accumul
 | Flush point | Segment | Boundary it closes | Where |
 |-------------|---------|--------------------|-------|
 | 1 | ST, transaction set header | The previous transaction set, before the new one resets the loop and the segment counter | `src/Billing/ParseERA.php:L144` |
-| 2 | LX, header number | The last claim of the previous service-line group | `src/Billing/ParseERA.php:L229` |
+| 2 | LX, header number | The last claim of the previous loop 2000 claim-payment grouping, the level at which a payer summarises a provider's claims rather than a claim's service lines | `src/Billing/ParseERA.php:L229` |
 | 3 | CLP, claim payment information | The previous claim, before the new claim's subscriber and flags are cleared at `src/Billing/ParseERA.php:L243-L250` | `src/Billing/ParseERA.php:L241` |
 | 4 | SE, transaction set trailer | The final claim of the transaction set, before the control number and segment count are checked at `src/Billing/ParseERA.php:L444-L450` | `src/Billing/ParseERA.php:L442` |
 
@@ -662,12 +683,18 @@ Internally, a trailer whose control number or segment count does not match retur
 
 Internally, a file that ends without an interchange trailer is reported at `src/Billing/ParseERA.php:L474-L476` in the second pass and at `src/Billing/ParseERA.php:L555-L557` in the first. The operator sees a premature-end message. VERIFIED: in the first pass that check runs after the callback at `src/Billing/ParseERA.php:L553`, so the deposit header has already been written by the time truncation is reported.
 
-Internally, a segment the parser does not recognise aborts the entire file. VERIFIED: the branch chain ends at `src/Billing/ParseERA.php:L467` with an unconditional else whose only statement, at `src/Billing/ParseERA.php:L468`, returns a message naming the segment identifier. There is no skip and no warning path; one unhandled segment discards everything after it. The operator sees a single sentence naming the segment, and - this is the half that matters - the remittance still renders correctly in the history browser, because the legacy renderer walks the same file with a different and wider vocabulary. The concrete instance is the Medicare inpatient adjudication segment MIA, which the legacy renderer understands at `library/edihistory/edih_835_html.php:L531-L540` and which has no branch anywhere in `src/Billing/ParseERA.php`, so it falls to `src/Billing/ParseERA.php:L467-L468`. An institutional remittance carrying it can be read on screen and can never be posted. The nearest handled neighbour, the outpatient adjudication segment MOA, is not posted either, but it is at least survivable: it is turned into a warning at `src/Billing/ParseERA.php:L318-L319`. This inversion, where the older component is the more capable one, is registered in [business-rules.md](business-rules.md) and in [defect-candidates.md](defect-candidates.md), and the segment vocabularies of both readers are compared in [transactions.md](transactions.md).
+Internally, a segment the parser does not recognise abandons the rest of the file. VERIFIED: the branch chain ends at `src/Billing/ParseERA.php:L467` with an unconditional else whose only statement, at `src/Billing/ParseERA.php:L468`, returns a message naming the segment identifier. There is no skip and no warning path, so the claim being accumulated when the segment arrives is lost, and so is every claim after it.
+
+VERIFIED: what has already reached accounts receivable is not lost. That return happens inside the same walk that has been flushing claims all along, so every claim closed by an earlier flush point - ST at `src/Billing/ParseERA.php:L144`, LX at `src/Billing/ParseERA.php:L229` or CLP at `src/Billing/ParseERA.php:L241` - was already handed to the callback at `src/Billing/ParseERA.php:L81` and is already posted. **The outcome is therefore position-dependent rather than all-or-nothing: how much of a remittance posts depends on where in the file the unrecognised segment sits.** A file whose first claim carries one posts nothing. A file whose fortieth claim carries one posts the thirty-nine before it and loses the fortieth and everything past it. The operator sees the same single sentence naming the segment in either case, with nothing in it to distinguish the two, and - this is the half that matters - the remittance still renders correctly in the history browser, because the legacy renderer walks the same file with a different and wider vocabulary.
+
+The concrete instance is the Medicare inpatient adjudication segment MIA, which the legacy renderer understands at `library/edihistory/edih_835_html.php:L531-L540` and which has no branch anywhere in `src/Billing/ParseERA.php`, so it falls to `src/Billing/ParseERA.php:L467-L468`. An institutional remittance carrying it can be read in full on screen, while the claim that carries it and every claim filed after it in the same file can never be posted. The nearest handled neighbour, the outpatient adjudication segment MOA, is not posted either, but it is at least survivable: it is turned into a warning at `src/Billing/ParseERA.php:L318-L319`. This inversion, where the older component is the more capable one, is registered in [business-rules.md](business-rules.md) and in [defect-candidates.md](defect-candidates.md), and the segment vocabularies of both readers are compared in [transactions.md](transactions.md).
+
+**The retry is where the position-dependence turns into a money problem, and nothing on the path prevents it.** VERIFIED: the deposit header for the check exists before the abort, because the posting screen runs the two passes in order at `interface/billing/sl_eob_process.php:L850-L851` and the first pass completes. VERIFIED: re-posting the same file writes a second one. Commit mode calls `SLEOB::arPostSession()` at `interface/billing/sl_eob_process.php:L277-L285`, and that method is an unconditional insert at `src/Billing/SLEOB.php:L95-L102` with no lookup of any kind, so every claim before the unrecognised segment is posted a second time under a second deposit. VERIFIED: the duplicate warning the screen does offer cannot catch it. Preview mode looks for an existing deposit by matching `ar_session.reference` against the bare check number at `interface/billing/sl_eob_process.php:L241`, colours the row red at `interface/billing/sl_eob_process.php:L243-L246` and prints a warning at `interface/billing/sl_eob_process.php:L265`, but the commit path stores that same reference prefixed with `ePay - ` at `src/Billing/SLEOB.php:L102`, so a deposit this screen created is not the shape its own duplicate check searches for. That same prefix defeats a second, independent reuse guard, on the other deposit writer, which is described under [S11](#stage-s11-accounts-receivable-posting). An operator who re-posts a remittance that failed part-way through therefore double-posts its earlier claims with no warning at either step. Both of those suspicions are registered in [defect-candidates.md](defect-candidates.md); this document records only that the path behaves this way.
 
 
 ## Stage S11 Accounts Receivable Posting
 
-This is where money enters the ledger. Everything before it moves paper and files; this stage changes what a patient owes.
+This is where money enters accounts receivable. That is the distinction being drawn, and it is narrower than it may sound: the earlier stages write a great deal of state - [S1](#stage-s1-charge-capture) creates the charge rows in `billing`, [S3](#stage-s3-batch-pipeline-dispatch) and [S4](#stage-s4-claim-generation) write `claims`, `billing` and `form_encounter`, and [S5](#stage-s5-envelope-post-processing) writes the transport outbox in `x12_remote_tracker` - but none of them writes a row to `ar_session` or `ar_activity`, and none of them changes what a patient or a payer owes. This stage is the first that does both.
 
 **Entry point.** `interface/billing/sl_eob_process.php`, which refuses to run unless it was reached with a remittance name, at `interface/billing/sl_eob_process.php:L740-L741`. It defines two callbacks and hands one to each parser pass.
 
@@ -675,7 +702,7 @@ This is where money enters the ledger. Everything before it moves paper and file
 
 `eob_process_era_callback()` at `interface/billing/sl_eob_process.php:L297` receives the second pass, once per claim, and does the ledger work.
 
-**Tables read.** Eight.
+**Tables read.** Eight in evaluating the remittance, plus a ninth on the write path. The ninth follows the table.
 
 | Table | DDL anchor | Read where |
 |-------|-----------|------------|
@@ -687,6 +714,8 @@ This is where money enters the ledger. Everything before it moves paper and file
 | `insurance_companies` | `sql/database.sql:L3279` | Joined to the coverage rows at `src/Billing/InvoiceSummary.php:L123-L124` |
 | `ar_activity` | `sql/database.sql:L10188` | Three times: `src/Billing/InvoiceSummary.php:L131-L136` for prior activity, `src/PaymentProcessing/Recorder.php:L209-L213` for the next sequence number, and `interface/billing/sl_eob_process.php:L860-L863` for the distribution audit |
 | `ar_session` | `sql/database.sql:L10158` | Twice: the duplicate-check probe at `interface/billing/sl_eob_process.php:L241` and the audit read at `interface/billing/sl_eob_process.php:L858` |
+
+A ninth table is read on this stage's write path rather than in evaluating the remittance, which is why the matrix marks it as read here as well as written. VERIFIED: the denial branch calls the claim updater asking for a new version, at `interface/billing/sl_eob_process.php:L395`, and that path reads `claims` (`sql/database.sql:L378`) through the version aggregate at `src/Billing/BillingUtilities.php:L1679` before inserting.
 
 **Tables written.** Five, and every column named below exists at the cited data definition anchor.
 
@@ -772,28 +801,37 @@ sequenceDiagram
     Operator->>PROC: open posting screen
     PROC->>FS: open report file name.html
     PROC->>P1: first pass
-    P1->>CBC: one call, all checks
-    CBC->>DB: probe ar_session by reference
-    CBC->>SLEOB: arPostSession per ticked check
-    SLEOB->>DB: INSERT ar_session
-    Note over CBC,DB: deposit headers are now permanent
-    P1->>P1: test for interchange trailer
-    PROC->>P2: second pass
-    loop each claim at a flush point
-        P2->>CB: accumulated claim
-        CB->>DB: read form_encounter and patient_data
-        CB->>DB: read invoice from billing and ar_activity
-        CB->>SLEOB: arPostPayment and arPostAdjustment
-        SLEOB->>REC: recordActivity
-        REC->>DB: allocate sequence_no then INSERT ar_activity
-        CB->>DB: UPDATE form_encounter last_level_closed
+    alt preview mode
+        P1->>CBC: one call, preview branch
+        CBC->>DB: probe ar_session by reference
+        CBC-->>Operator: one tick box per check, nothing written
+    else commit mode
+        P1->>CBC: one call, commit branch
+        CBC->>SLEOB: arPostSession per ticked check
+        SLEOB->>DB: INSERT ar_session
+        Note over CBC,DB: deposit headers are now permanent
     end
-    PROC->>DB: audit deposit total against ledger sum
-    PROC->>Operator: alert if a check did not distribute fully
+    P1->>P1: test for interchange trailer
+    opt commit mode only
+        PROC->>P2: second pass
+        loop each claim at a flush point
+            P2->>CB: accumulated claim
+            CB->>DB: read form_encounter and patient_data
+            CB->>DB: read invoice from billing and ar_activity
+            CB->>SLEOB: arPostPayment and arPostAdjustment
+            SLEOB->>REC: recordActivity
+            REC->>DB: allocate sequence_no then INSERT ar_activity
+            CB->>DB: UPDATE form_encounter last_level_closed
+        end
+        PROC->>DB: audit deposit total against ledger sum
+        PROC->>Operator: alert if a check did not distribute fully
+    end
     PROC->>FS: write buffered page to name.html
 ```
 
-VERIFIED: the two passes are invoked one after the other in a single concatenated expression at `interface/billing/sl_eob_process.php:L849-L852`, so their return messages are joined and shown together even though the first pass has already written to the database by the time the second begins. VERIFIED: the report file is opened before either pass, at `interface/billing/sl_eob_process.php:L756-L760`, and written after the page is complete, at `interface/billing/sl_eob_process.php:L910-L912`.
+VERIFIED: the two branches of that diagram are the screen's two modes, and they are mutually exclusive. The test is at `interface/billing/sl_eob_process.php:L815`: when the request carries the original flag, only the first pass runs, at `interface/billing/sl_eob_process.php:L816`, and its output is the tick-box table echoed at `interface/billing/sl_eob_process.php:L817`. Otherwise the else branch at `interface/billing/sl_eob_process.php:L818` renders the posting table and both passes run. VERIFIED: the callback resolves the same distinction internally. `eob_process_era_callback_check()` tests the identical flag at `interface/billing/sl_eob_process.php:L226`, renders and probes in that branch, and inserts deposit headers only in the else at `interface/billing/sl_eob_process.php:L269`. A single run therefore either probes for duplicates or writes deposits - never both.
+
+VERIFIED: in commit mode the two passes are invoked one after the other in a single concatenated expression at `interface/billing/sl_eob_process.php:L849-L852`, so their return messages are joined and shown together even though the first pass has already written to the database by the time the second begins. VERIFIED: the report file is opened before either pass, at `interface/billing/sl_eob_process.php:L756-L760`, and written after the page is complete in both modes, at `interface/billing/sl_eob_process.php:L910-L912`.
 
 ## Stage S12 Secondary and Tertiary Payer Setup
 
@@ -803,22 +841,24 @@ When one payer is finished with a claim, the claim has to be offered to the next
 
 VERIFIED: reaching it requires four conditions to hold at once, all tested at `interface/billing/sl_eob_process.php:L697` and `interface/billing/sl_eob_process.php:L717` - no error was raised for the claim, the run is not a dry run, every existing service item on the invoice received some response, and the remittance being posted is from the primary payer with a secondary payer on file for the service date.
 
-**Tables read.** Two.
+**Tables read.** Two in resolving the next payer, plus a third on the write path. The third follows the table.
 
 | Table | DDL anchor | Read where |
 |-------|-----------|------------|
 | `form_encounter` | `sql/database.sql:L2022` | `src/Billing/SLEOB.php:L281-L283`, for the service date and the level last billed |
 | `insurance_data` | `sql/database.sql:L3306` | `src/Billing/SLEOB.php:L258-L261`, to find the payer for the next level, and again at `interface/billing/sl_eob_process.php:L717` to test that a secondary exists at all |
 
+A third table is read on this stage's write path rather than in resolving the next payer, which is why the matrix marks it as read here as well as written. VERIFIED: both calls this stage makes ask the claim updater for a new version, at `src/Billing/SLEOB.php:L295` and `src/Billing/SLEOB.php:L300`, and that path reads `claims` (`sql/database.sql:L378`) through the version aggregate at `src/Billing/BillingUtilities.php:L1679` before inserting.
+
 VERIFIED: the coverage lookup is bounded by a date window rather than taken as current. The predicate at `src/Billing/SLEOB.php:L259` accepts a row whose start date is on or before the service date or null, and whose end date is on or after the service date or null, ordering by start date descending and taking one row at `src/Billing/SLEOB.php:L260`. The level name it matches on is looked up from a fixed three-entry map at `src/Billing/SLEOB.php:L256`, and any level outside one to three is rejected before the query runs, at `src/Billing/SLEOB.php:L252-L254`.
 
-**Tables written.** Three.
+**Tables written.** Two, plus a third that the same updater writes only under a status this stage never uses, listed here because a reader following the updater's code will see the statement and needs to know why it does not fire. This is why the matrix marks `form_encounter` as read-only for this stage.
 
 | Table | Columns written | Where | DDL anchor |
 |-------|-----------------|-------|-----------|
 | `claims` | A new version row carrying `status` from `src/Billing/BillingUtilities.php:L1590`, `bill_process` from `src/Billing/BillingUtilities.php:L1606`, `target` from `src/Billing/BillingUtilities.php:L1623`, `payer_id` and `payer_type` from `src/Billing/BillingUtilities.php:L1630`, and `submitted_claim` unconditionally from `src/Billing/BillingUtilities.php:L1653` | `src/Billing/SLEOB.php:L295` and `src/Billing/SLEOB.php:L300`, reaching the claim updater at `src/Billing/BillingUtilities.php:L1688` or `src/Billing/BillingUtilities.php:L1698` | `sql/database.sql:L378-L393` |
 | `billing` | `billed` set to 0 at `src/Billing/BillingUtilities.php:L1598`, `bill_process` at `src/Billing/BillingUtilities.php:L1608`, `target` at `src/Billing/BillingUtilities.php:L1625` and `payer_id` at `src/Billing/BillingUtilities.php:L1633`, applied to every active charge row for the encounter | The same updater, whose billing-table statement is at `src/Billing/BillingUtilities.php:L1648-L1649` | `sql/database.sql:L257`, `sql/database.sql:L260`, `sql/database.sql:L268`, `sql/database.sql:L259` |
-| `form_encounter` | `last_level_billed` | `src/Billing/BillingUtilities.php:L1722-L1723`, but only when the status being written is the billed value and the payer type is above zero, per the guards at `src/Billing/BillingUtilities.php:L1720-L1721` | `sql/database.sql:L2035` |
+| `form_encounter` | `last_level_billed` - **never from this stage** | `src/Billing/BillingUtilities.php:L1722-L1723`, reached only when the status being written is the billed value and the payer type is above zero, per the guards at `src/Billing/BillingUtilities.php:L1720-L1721` | `sql/database.sql:L2035` |
 
 VERIFIED: the third write does not happen on this stage's normal path, because the status this stage writes is 1 or 6, never 2. The guard at `src/Billing/BillingUtilities.php:L1720` therefore fails, and `last_level_billed` is advanced later, by the generation stage, rather than here. What this stage does advance is `last_level_closed`, and that happens in [S11](#stage-s11-accounts-receivable-posting) at `interface/billing/sl_eob_process.php:L713`, immediately before this stage is called.
 
@@ -856,7 +896,9 @@ The directory tree it writes into is created by a separate one-time setup routin
 
 **Tables read.** None by the indexing operation itself. One elsewhere in the same tree, and only one: the deposit-header read described under Tables written below, which belongs to the history browser's remittance-posted view rather than to indexing.
 
-**Tables written.** None. VERIFIED: this is the stage that makes the whole legacy tree's relationship to the database plain. Across all 14,979 lines of `library/edihistory/` there is exactly one query, at `library/edihistory/edih_io.php:L737`, and it is a parameterized read of the deposit header by reference. Its only purpose is to answer whether a given check has already been posted, for the display function that begins at `library/edihistory/edih_io.php:L729`. Nothing in this stage, and nothing else in that tree, writes to any table. The significance is architectural: the history subsystem is a filesystem index deliberately decoupled from the ledger, which is why a file can be fully indexed and viewable while the claim it concerns shows no sign of it.
+**Tables written.** None. VERIFIED: this is the stage that makes the whole legacy tree's relationship to the database plain. Across all 14,979 lines of `library/edihistory/` there is exactly one query, at `library/edihistory/edih_io.php:L737`, and it is a parameterized read of the deposit header by reference. Its only purpose is to answer whether a given check has already been posted, for the display function that begins at `library/edihistory/edih_io.php:L729`. Nothing in this stage, and nothing else in that tree, writes to any table. VERIFIED: the observable consequence is that a file can be fully indexed and viewable in the history browser while the claim it concerns shows no sign of it, because no column anywhere is written by indexing.
+
+INFERRED (confidence: High): the separation is a design decision rather than an omission, and the history subsystem was built as a filesystem index intentionally kept apart from the ledger. Basis: a tree of 14,979 lines that reaches the database exactly once, for a read that only answers a display question, is very unlikely to have arrived at that ratio by accident.
 
 **Files produced or consumed.** Consumed: whatever is sitting in each type's directory and is not yet in that type's index. Produced: two index files per type, plus a log.
 
@@ -869,7 +911,11 @@ The directory tree it writes into is created by a separate one-time setup routin
 
 VERIFIED: eight types are tracked, and the outbound batch type is the only one whose directory is not under the history root. Its row points at `documents/edi` directly, at `library/edihistory/edih_csv_inc.php:L738`, and the comment immediately above it at `library/edihistory/edih_csv_inc.php:L735` records that the subsystem only reads that directory and never writes to it. The remaining seven - acknowledgements, status requests, status responses, eligibility requests, eligibility responses, authorisations and remittances - each get their own directory beneath the history root, at `library/edihistory/edih_csv_inc.php:L743-L757`.
 
-VERIFIED: the remittance type indexed here is not the remittance directory used by [S9](#stage-s9-remittance-intake-and-staging). The index expects remittances in `documents/edi/history/f835`, per `library/edihistory/edih_csv_inc.php:L756`, while the posting path stores them in `documents/era`, per `interface/billing/era_payments.php:L151`. The comment at `library/edihistory/edih_csv_inc.php:L755` shows this was a deliberate choice about naming rather than an accident. The consequence is that a remittance posted through the accounts-receivable path is not indexed unless the operator also uploads it to the history browser, and the two copies then live in two directories.
+VERIFIED: the remittance type indexed here is not the remittance directory used by [S9](#stage-s9-remittance-intake-and-staging). The index expects remittances in `documents/edi/history/f835`, per `library/edihistory/edih_csv_inc.php:L756`, while the posting path stores them in `documents/era`, per `interface/billing/era_payments.php:L151`.
+
+INFERRED (confidence: High): the divergence is a deliberate choice about naming rather than an accident. Basis: the comment immediately above the store definition, at `library/edihistory/edih_csv_inc.php:L755`, states the author's reason - that the existing naming scheme was considered confusing, so a separate directory was used instead. Per the source-of-truth ordering in [README.md](README.md), a comment is evidence of intent and not of behaviour, which is why this is labelled rather than asserted.
+
+VERIFIED: the consequence, whatever the reason, is that a remittance posted through the accounts-receivable path is not indexed unless the operator also uploads it to the history browser, and the two copies then live in two directories.
 
 **State transitions.**
 
@@ -900,7 +946,8 @@ This is the table an engineer comes here for: which database tables change when 
 
 Three properties of these declarations are worth stating once, because they shape every claim in this document.
 
-- VERIFIED: `ar_session`, `ar_activity` and `code_types` are the only three of the twenty-one declared without backtick quoting around the table name, at `sql/database.sql:L10158`, `sql/database.sql:L10188` and `sql/database.sql:L10596`. The other eighteen are quoted. This is cosmetic in effect but it is a reliable fingerprint of when each table was added.
+- VERIFIED: `ar_session`, `ar_activity` and `code_types` are the only three of the twenty-one declared without backtick quoting around the table name, at `sql/database.sql:L10158`, `sql/database.sql:L10188` and `sql/database.sql:L10596`. The other eighteen are quoted. VERIFIED: the difference is cosmetic in effect, because the unquoted names are not reserved words and the statements parse identically.
+    - INFERRED (confidence: Low): the quoting style tracks the era in which each table was added to the schema. Basis: a single consistent style would be expected from one authoring pass, so a minority style suggests a different pass; but no commit was examined to confirm it, and this document offers no evidence that the two styles correspond to two periods rather than to two authors.
 - VERIFIED: every monetary column in the core revenue-cycle path is declared `decimal(12,2)`: `billing.fee` at `sql/database.sql:L266`, `ar_session.pay_total` at `sql/database.sql:L10166`, `ar_session.global_amount` at `sql/database.sql:L10169`, `ar_activity.pay_amount` at `sql/database.sql:L10200`, `ar_activity.adj_amount` at `sql/database.sql:L10201`, and both void totals at `sql/database.sql:L10008-L10009`. Two-decimal rounding is therefore enforced by the schema rather than chosen by the code. VERIFIED: the eligibility table is the exception and is not on the money path: `benefit_eligibility.amount` is `decimal(5,2)` at `sql/database.sql:L14093` and its `percent` is `decimal(3,2)` at `sql/database.sql:L14094`.
 - VERIFIED: `code_types` is joined by convention rather than by constraint. The generation stage joins it to the charge rows on a key column at `src/Billing/Claim.php:L104`, and the schema declares no foreign key anywhere, which is a repository-wide property recorded in [README.md](README.md).
 
@@ -911,13 +958,13 @@ Three properties of these declarations are worth stating once, because they shap
 | `billing` | 13 | `sql/database.sql:L245` | RW | RW | R | W | RW | . | . | . | . | R | R | RW | W | . |
 | `users` | 10 | `sql/database.sql:L9786` | R | RW | . | . | R | . | . | . | . | . | . | . | . | . |
 | `insurance_data` | 10 | `sql/database.sql:L3306` | R | . | R | . | R | . | . | . | . | . | . | R | R | . |
-| `form_encounter` | 8 | `sql/database.sql:L2022` | R | RW | R | W | RW | . | . | . | . | . | . | RW | RW | . |
-| `claims` | 8 | `sql/database.sql:L378` | . | . | R | RW | W | . | . | . | . | . | . | W | W | . |
+| `form_encounter` | 8 | `sql/database.sql:L2022` | R | RW | R | W | RW | . | . | . | . | . | . | RW | R | . |
+| `claims` | 8 | `sql/database.sql:L378` | . | . | R | RW | RW | . | . | . | . | . | . | RW | RW | . |
 | `ar_activity` | 8 | `sql/database.sql:L10188` | . | RW | R | . | R | . | . | . | . | . | . | RW | . | . |
 | `patient_data` | 5 | `sql/database.sql:L8334` | R | . | R | . | R | . | . | . | . | R | R | R | . | . |
 | `insurance_companies` | 5 | `sql/database.sql:L3279` | R | . | . | . | R | . | . | . | . | . | . | R | . | . |
 | `eligibility_verification` | 4 | `sql/database.sql:L1647` | RW | . | . | . | . | . | . | . | . | . | . | . | . | . |
-| `ar_session` | 4 | `sql/database.sql:L10158` | . | . | . | . | . | . | . | . | . | . | . | RW | . | R |
+| `ar_session` | 4 | `sql/database.sql:L10158` | . | . | . | . | . | . | . | . | . | . | . | RW | . | . |
 | `x12_remote_tracker` | 3 | `sql/database.sql:L14149` | . | . | . | . | . | W | RW | . | . | . | . | . | . | . |
 | `x12_partners` | 3 | `sql/database.sql:L10025` | . | . | . | R | R | . | R | . | . | . | . | . | . | . |
 | `drug_sales` | 3 | `sql/database.sql:L1543` | RW | RW | . | . | . | . | . | . | . | . | . | R | . | . |
@@ -930,15 +977,19 @@ Three properties of these declarations are worth stating once, because they shap
 | `codes` | 1 | `sql/database.sql:L1124` | . | . | . | . | R | . | . | . | . | . | . | . | . | . |
 | `code_types` | 1 | `sql/database.sql:L10596` | . | . | . | . | R | . | . | . | . | . | . | . | . | . |
 
-Five readings of that matrix are worth making explicit, because each one is a fact about the subsystem rather than about the table.
+Five readings of that matrix are worth making explicit, because each one is a fact about the subsystem rather than about the table. Each is introduced in bold below; the fourth carries two paragraphs of elaboration because the mechanism behind it is not visible in the matrix itself.
 
-VERIFIED: **stages S7 and S8 are empty rows in every column.** Acknowledgement intake and claim-status handling touch no table at all. A payer can reject a transmission syntactically, or report a claim as denied in a 277, and no column anywhere records it. This is the single largest gap in the data flow and it is why an operator can see a claim as billed and sent while the payer has already refused it.
+VERIFIED: **stages S7 and S8 are empty rows in every column.** Acknowledgement intake and claim-status handling touch no table at all. A payer can reject a transmission syntactically, or report a claim as denied in a 277, and no column anywhere records it. This is the single largest gap in the data flow and it is why an operator can see a claim marked billed, with the line "Claim was generated to file" beside it at `interface/billing/billing_report.php:L1227-L1228`, while the payer has already refused it.
 
-VERIFIED: **stage S13 appears only as a single read of the deposit header**, at `library/edihistory/edih_io.php:L737`, and that read belongs to the history browser's remittance-posted view rather than to indexing. The whole EDI history subsystem is a filesystem index, deliberately decoupled from the ledger.
+VERIFIED: **stage S13 is an empty row in every column too.** The indexing routine is `edih_disp_file_process()`, which spans `library/edihistory/edih_io.php:L177-L270` and issues no query of any kind; indexing is entirely filesystem and comma-separated-value work. The one database read anywhere in the legacy tree is not part of it. That read is the `ar_session` select at `library/edihistory/edih_io.php:L737`, and it belongs to `edih_disp_era_processed()`, a display function declared at `library/edihistory/edih_io.php:L729` that answers whether a check has already been posted and selects between four operator strings at `library/edihistory/edih_io.php:L738-L747`. It is reached from the history browser's own view of a remittance, not from an indexing run, which is why the matrix marks it nowhere. What that single query implies about the legacy tree's relationship to the ledger is set out in [architecture.md](architecture.md).
 
 VERIFIED: **the only table any stage writes without also reading it somewhere in the cycle is `voids`**, at `src/Billing/BillingUtilities.php:L1895`. Nothing in the documented surface reads it back; it is an append-only journal.
 
-VERIFIED: **`claims` is written by four stages and read by two.** Every write is an insert of a new version row, at `src/Billing/BillingUtilities.php:L1688` or `src/Billing/BillingUtilities.php:L1698`, except the single in-place update at `src/Billing/BillingUtilities.php:L1713-L1715`. Both reads are bounded by a status range - the existing-claim lookup at `src/Billing/BillingUtilities.php:L1539-L1540` and the queue join in [S2](#stage-s2-claim-selection-and-queueing) - so a row outside that range is invisible to the pipeline that created it.
+VERIFIED: **`claims` is written by four stages and read by five.** The four writers are S3, S4, S11 and S12; the five readers are those same four plus [S2](#stage-s2-claim-selection-and-queueing). Every write is an insert of a new version row, at `src/Billing/BillingUtilities.php:L1688` or `src/Billing/BillingUtilities.php:L1698`, except the single in-place update at `src/Billing/BillingUtilities.php:L1713-L1715`.
+
+VERIFIED: the reason all four writers are also readers is that an insert cannot allocate its own version without a read. `SELECT IFNULL(MAX(version), 0) + 1` runs at `src/Billing/BillingUtilities.php:L1679` immediately before the insert, inside the same transaction opened at `src/Billing/BillingUtilities.php:L1677`, and every insert path reaches it: S3 through `src/Billing/BillingProcessor/Tasks/TaskReopen.php:L33-L41` and `src/Billing/BillingProcessor/Tasks/AbstractProcessingTask.php:L49-L56`, S4 through `src/Billing/BillingProcessor/Tasks/GeneratorX12.php:L151-L162`, S11 through `interface/billing/sl_eob_process.php:L395` and S12 through `src/Billing/SLEOB.php:L295` and `src/Billing/SLEOB.php:L300`.
+
+VERIFIED: only one of those reads is bounded by a status range, and it is not the aggregate. The version aggregate at `src/Billing/BillingUtilities.php:L1679` carries no status predicate, and neither does the queue join in S2, at `src/Billing/BillingReport.php:L144`. The single status-bounded read is the existing-claim lookup at `src/Billing/BillingUtilities.php:L1539-L1540`, taken only when the updater is asked not to create a version, which within these stages means S4's second pass. A row outside `status > 0 AND status < 4` is therefore invisible to that one lookup while remaining perfectly visible to the queue and to version allocation - the asymmetry described under [S4](#stage-s4-claim-generation).
 
 VERIFIED: **`billing` is the only table touched by nine of the fourteen stages.** It is the charge queue, the state machine and the audit trail all at once, which is why it carries the highest reference count and why [upgrade-risk-map.md](upgrade-risk-map.md) treats anything that writes it as high consequence.
 
@@ -950,25 +1001,35 @@ The question this diagram answers is: which values can `claims.status` hold, whi
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Unbilled: charge captured, billing.billed = 0
-    Unbilled --> Queued: operator queues, status 1
-    Queued --> Billed: generator marks billed, status 2
-    Billed --> Queued: reopen task, status 1
-    Billed --> Denied: remittance carries claim status code 4, status 7
-    Billed --> Forwarded: remittance carries crossover, status 6
-    Forwarded --> Queued: next payer resolved, status 1
-    Billed --> NextLevel: payer setup advances the level
-    NextLevel --> Queued: next payer resolved, status 1
-    NextLevel --> Queued: no next payer, reopened unrouted
-    Denied --> Queued: operator reopens by hand
-    Billed --> Voided: void or purge clears billed
-    Voided --> Unbilled: encounter reopened for billing
-    Closed: status 4, rendered but never written
-    Canceled: status 5, rendered but never written
-    NextLevel --> NextLevel: level already tertiary, requeued to the same payer
+    [*] --> Queued: operator queues the encounter
+    Queued --> Billed: a generating task inserts a version at status 2
+    Billed --> Queued: the reopen task inserts a version at status 1
+    Billed --> Denied: the remittance denies the claim, status 7
+    Billed --> Forwarded: the remittance forwards the claim, crossover, status 6
+    Billed --> Queued: payer setup advances the level, no crossover, status 1
+    Denied --> Queued: an operator reopens the claim by hand
+    Forwarded --> Billed: the claim is generated again for the next payer, status 2
+    Queued: status 1 queued for billing
+    Billed: status 2 billed
+    Forwarded: status 6 forwarded to the next level
+    Denied: status 7 denied, reason string carried in process_file
+    Closed: status 4 closed - rendered by the screen, written by nothing
+    Canceled: status 5 canceled - rendered by the screen, written by nothing
+    note right of Forwarded
+        No value means the payers are finished and the balance
+        is the patient's. The sequence has no exit.
+    end note
 ```
 
-VERIFIED: five status values have a writer in the documented surface, and two do not.
+Every state in that diagram is a literal `claims.status` value, and nothing else. That restriction is deliberate. A claim's progress through this subsystem is not one state machine but four running in parallel, and mixing them into a single picture is what makes the transitions look inconsistent. The three that are not `claims.status` are recorded around this diagram rather than drawn into it.
+
+- **`billing.billed`, declared at `sql/database.sql:L257`, is a separate flag on the charge rows.** VERIFIED: the updater sets it to 1 when the status being written is the billed value, at `src/Billing/BillingUtilities.php:L1593`, and back to 0 for every other status it writes, at `src/Billing/BillingUtilities.php:L1598`. A newly captured charge starts at 0, from the insert at `src/Billing/BillingUtilities.php:L1467-L1470`, before any `claims` row exists at all. Reversal moves it independently of `status`: `doVoid()` clears it at `src/Billing/BillingUtilities.php:L1837` onward while writing no status of its own.
+- **`form_encounter.last_level_billed`, declared at `sql/database.sql:L2035`, is the payer-level axis.** VERIFIED: it advances only when the status being written is the billed value and the payer type is above zero, at `src/Billing/BillingUtilities.php:L1720-L1724`, and the level it advances to is computed in the payer-setup stage at `src/Billing/SLEOB.php:L285-L288`. That is the axis on which the tertiary self-loop described below occurs, not the status axis.
+- **`claims.bill_process` and `billing.bill_process`, declared at `sql/database.sql:L385` and `sql/database.sql:L260`, are the processing-progress axis**, and the paragraph after the value table below sets out what makes them distinct from `status`.
+
+VERIFIED: the crossover transition writes 6 and stops there; nothing converts a 6 into a 1. `arSetupSecondary()` chooses the value once, at `src/Billing/SLEOB.php:L273-L278` - 6 when the caller passed the crossover flag, 1 otherwise - and both of its updater calls, at `src/Billing/SLEOB.php:L295` and `src/Billing/SLEOB.php:L300`, write whichever value that choice produced. The only way out of 6 is the same way out of any status: a later run inserts a new version carrying a new value, which for a regenerated claim is the billed value.
+
+VERIFIED: four status values have a writer in the documented surface, and two do not.
 
 | Value | Meaning in the renderer | Written by |
 |-------|------------------------|------------|
@@ -981,13 +1042,15 @@ VERIFIED: five status values have a writer in the documented surface, and two do
 
 VERIFIED: the renderer that turns these values into sentences is a single chain at `interface/billing/billing_report.php:L1194-L1230`. It reports a queued claim from `bill_process` rather than from `status`, at `interface/billing/billing_report.php:L1194-L1196`; it reports the forwarded case at `interface/billing/billing_report.php:L1205-L1207`; it unpacks the denial reason string by splitting on commas at `interface/billing/billing_report.php:L1211` and then on underscores at `interface/billing/billing_report.php:L1214`; and it offers the generated file for download only when a process time was recorded, at `interface/billing/billing_report.php:L1227-L1230`.
 
-VERIFIED: `bill_process` is a separate axis from `status` and one of its values is written only by the payer-setup stage. `src/Billing/SLEOB.php:L295` sets it to 5 when a next payer was found, and the docblock of the field that carries the partner processing format concedes uncertainty about its own effect at `src/Billing/BillingProcessor/BillingClaim.php:L81-L89`. The two axes together, and the values 4 and 5 that no writer produces, are why the queue and the update path can disagree about what a claim's state is.
+VERIFIED: `bill_process` is the third axis named above, and one of its values is written only by the payer-setup stage. `src/Billing/SLEOB.php:L295` sets it to 5 when a next payer was found, and the docblock of the field that carries the partner processing format concedes uncertainty about its own effect at `src/Billing/BillingProcessor/BillingClaim.php:L81-L89`. All four axes together, and the two status values that no writer produces, are why the queue and the update path can disagree about what a claim's state is.
 
 **The terminal-state gap.** VERIFIED: there is no status value meaning the payers are finished and the balance is the patient's. The sequence ends by looping: a claim whose last billed level is already tertiary is requeued to the tertiary payer again, because the advance condition at `src/Billing/SLEOB.php:L286` cannot increment past three, and a claim answered by a non-primary payer is never advanced at all, because the call site at `interface/billing/sl_eob_process.php:L717` requires the primary flag. Both are described in full under [S12](#stage-s12-secondary-and-tertiary-payer-setup) and registered in [defect-candidates.md](defect-candidates.md).
 
 ## The Core Revenue Cycle Tables
 
-The question this diagram answers is: how do the seven tables at the centre of the cycle join to one another, given that the schema declares no foreign keys.
+The question this diagram answers is: how do the tables at the centre of the cycle join to one another, given that the schema declares no foreign keys.
+
+Ten entities are drawn, and they fall into two groups. The **seven core tables**, the ones a claim's own data passes through from charge to cash, are `patient_data`, `form_encounter`, `billing`, `claims`, `insurance_data`, `ar_session` and `ar_activity`. The **three supporting tables** are drawn because two of those joins cannot be expressed without them and because the outbound path terminates in one of them: `insurance_companies`, which is what a coverage row and a deposit header both point at; `x12_partners`, which is what a claim row points at; and `x12_remote_tracker`, which is the transport outbox keyed on the same partner. The remaining eleven of the twenty-one tables in the matrix above are omitted deliberately, because none of them participates in a join between two of the seven.
 
 ```mermaid
 erDiagram
@@ -1013,7 +1076,13 @@ VERIFIED: `ar_activity` is soft-deleted rather than removed. Its `deleted` colum
 
 This section is the test of whether the rest of the document works. One claim is walked from charge to cash, and at each stage the tables and the files it changes are named. Nothing here is new; every statement is a restatement of a stage above, which is the point.
 
-**The scenario.** Patient 1234, encounter 5678, one office-visit procedure at 150.00, primary insurance on file, and trading partner 3 with automatic upload enabled and no local upload directory configured, so the batch stays in the site's outbound directory. The operator picks the per-insurer professional generator. The batch object is constructed once, at 14:30:12 on 26 July 2026, which fixes every filename below.
+**The scenario.** Patient 1234, encounter 5678, one office-visit procedure at 150.00. Trading partner 3 has automatic upload enabled and no local upload directory configured, so the batch stays in the site's outbound directory. The operator picks the per-insurer professional generator. The batch object is constructed once, at 14:30:12 on 26 July 2026, which fixes every filename below.
+
+Three further facts about the scenario are stated rather than assumed, because without them several of the predictions below do not follow.
+
+- **Coverage: a primary row and a secondary row, both effective on the service date.** The secondary row is what makes stage [S12](#stage-s12-secondary-and-tertiary-payer-setup) run at all. VERIFIED: the call is guarded at `interface/billing/sl_eob_process.php:L717` by two conditions - the remittance must be from the primary payer, and `arGetPayerID()` must return a payer for level 2, which it does only when a coverage row's date window brackets the service date, per the predicate at `src/Billing/SLEOB.php:L259`. With no secondary row on file the S12 line of the table below would read "None" for both columns.
+- **The remittance: cheque 987654, one claim payment, 120.00 paid, and one CO-45 contractual adjustment of 10.00.** These are what make the [S11](#stage-s11-accounts-receivable-posting) row concrete. Of the 150.00 charged, 130.00 is credited by those two lines and 20.00 remains outstanding, which is the balance the secondary is billed for. VERIFIED: the payment posts first and the adjustment second, so the two ledger lines take sequence 1 and sequence 2 in that order - the payment call is at `interface/billing/sl_eob_process.php:L560` and the adjustment loop begins at `interface/billing/sl_eob_process.php:L596`. VERIFIED: reason code 45 is treated as a contractual write-off by the test at `interface/billing/sl_eob_process.php:L599-L600` and posts at its face value through `interface/billing/sl_eob_process.php:L641-L652`.
+- **The remittance does not report a crossover.** That is what makes S12 write status 1 rather than status 6. VERIFIED: `arSetupSecondary()` chooses between the two on the crossover flag alone, at `src/Billing/SLEOB.php:L273-L278`, and the caller passes the flag it parsed out of the remittance at `interface/billing/sl_eob_process.php:L718`.
 
 | Stage | Tables changed | Files changed, with the directory |
 |-------|----------------|----------------------------------|
@@ -1023,23 +1092,33 @@ This section is the test of whether the rest of the document works. One claim is
 | S3 | Nothing is written. With a generating task selected, this stage only reads `x12_partners` for the processing format and builds the claim objects; the two non-generating tasks are the ones that write here | None |
 | S4 | `claims` gains version 1, marked `status` 2 and `bill_process` 1, then the same row is updated in place to `bill_process` 2 with `process_file` set to the batch name and `process_time` stamped; `billing` moves `billed` to 1, `bill_date` and `process_date` to now, `bill_process` to 2, `process_file` to the batch name, `target` to the partner format and `payer_id` to the primary payer; `form_encounter.last_level_billed` moves to 1 | Segment text is accumulated in the batch object in memory only |
 | S5 | `x12_remote_tracker` gains one row: partner 3, status `waiting`, `x12_filename` set to the batch name | `documents/edi/2026-07-26-143012-batch-p3.txt` is created and appended, in the **outbound batch directory**. The base name comes from `src/Billing/BillingProcessor/BillingClaimBatch.php:L64` and the per-partner suffix from `src/Billing/BillingProcessor/Tasks/GeneratorX12Direct.php:L110` |
-| S6 | `x12_remote_tracker` moves to `in-progress` and then to `success` | `documents/edi/2026-07-26-143012-batch-p3.txt` in the **outbound batch directory** is read and uploaded, resolved by the fallback at `src/Billing/BillingProcessor/X12RemoteTracker.php:L77` because no local directory is set; nothing local is written or deleted |
+| S6 | `x12_remote_tracker` moves from `waiting` to `parameter-error`, and stops there. It does not reach `in-progress` and it does not reach `success`, because the local directory is one of the six required partner fields checked at `src/Billing/BillingProcessor/X12RemoteTracker.php:L133` and the validation at `src/Billing/BillingProcessor/X12RemoteTracker.php:L62` fails and `continue`s before any path is composed. The `messages` column gains "`X12 SFTP Local Dir` is required" | None. No file is read, because the read at `src/Billing/BillingProcessor/X12RemoteTracker.php:L80` is never reached; no file is uploaded; nothing local is written or deleted. `documents/edi/2026-07-26-143012-batch-p3.txt` stays in the **outbound batch directory**, unsent |
 | S7 | None | The payer's acknowledgement lands first in the **history temporary directory** as `documents/edi/history/tmp/<the name the operator's browser sent>`, read-only, per `library/edihistory/edih_uploads.php:L98` and `library/edihistory/edih_uploads.php:L142-L145`; it is then filed read-only into `documents/edi/history/f997` in the **history directory** |
 | S8 | None | A status notification, if one is uploaded, is filed into `documents/edi/history/f277` in the **history directory** |
 | S9 | None | The remittance is stored as `documents/era/<gsdate>_<isacontrol>_<payerid>.edi` in the **inbound remittance staging directory**; a colliding upload becomes `.pending_<name>.edi` in the same directory |
 | S10 | None; the parser only reads | The staged remittance in the **inbound remittance staging directory** is read twice, once per pass |
-| S11 | `ar_session` gains one deposit header for the check; `ar_activity` gains one payment line at sequence 1 and one adjustment line at sequence 2; `form_encounter.last_level_closed` moves to 1 | `documents/era/<name>.html` is written in the **inbound remittance staging directory**, receiving the whole posting report |
-| S12 | `claims` gains version 2 with `status` 1 and `bill_process` 5; `billing` moves `billed` back to 0, `bill_process` to 5, `target` to the paper value and `payer_id` to the secondary payer | None |
+| S11 | `ar_session` gains one deposit header for cheque 987654; `ar_activity` gains a payment line of 120.00 at sequence 1 and a CO-45 adjustment line of 10.00 at sequence 2, leaving 20.00 of the 150.00 charge outstanding; `form_encounter.last_level_closed` moves to 1 | `documents/era/<name>.html` is written in the **inbound remittance staging directory**, receiving the whole posting report |
+| S12 | Because a secondary coverage row is effective on the service date, `claims` gains version 2 with `status` 1 - not 6, because the remittance reported no crossover - and `bill_process` 5; `billing` moves `billed` back to 0, `bill_process` to 5, `target` to the paper value and `payer_id` to the secondary payer | None |
 | S13 | None | Two index rows are appended in the **history directory** under `documents/edi/history/csv`, one in `files_f997.csv` and one in `claims_f997.csv`, and a line is appended to the log under `documents/edi/history/log` |
 
-Four predictions follow from that walk that a reader can make without opening any source file, and each is the practical payoff of a stage above.
+Five predictions follow from that walk that a reader can make without opening any source file, and each is the practical payoff of a stage above.
+
+- **The file is never sent, and the reason is a required field rather than a missing one.** The partner's local directory is not optional: it sits in the required-field list at `src/Billing/BillingProcessor/X12RemoteTracker.php:L35-L42` alongside the host, port, login, password and remote directory, and leaving it blank fails the same `empty()` test at `src/Billing/BillingProcessor/X12RemoteTracker.php:L133` that a blank password would fail. The outbox row therefore ends at `parameter-error` and the batch sits in the outbound directory indefinitely. The fallback path at `src/Billing/BillingProcessor/X12RemoteTracker.php:L77` cannot rescue it, because that statement is downstream of the validation that already stopped the row.
 
 - **The claim row count is two, not one, and not four.** S4 inserts one version and then updates that same row in place; S12 inserts a second. Which of the two happens is decided by the updater's first argument, at `src/Billing/BillingUtilities.php:L1657` for the insert and `src/Billing/BillingUtilities.php:L1709` for the update. Querying `claims` for one encounter and expecting one row is wrong, and so is counting one row per pipeline step.
 - **The batch file is not indexed by the history browser unless the operator asks.** Indexing is an explicit request, per `interface/billing/edih_main.php:L232-L237`, and the outbound directory is the one store the history subsystem only reads, per the comment at `library/edihistory/edih_csv_inc.php:L735`.
 - **The remittance exists in one directory and the history index expects it in another.** S9 writes `documents/era`, per `interface/billing/era_payments.php:L151`; the index looks in `documents/edi/history/f835`, per `library/edihistory/edih_csv_inc.php:L756`.
 - **If the payer had rejected the transmission, none of the table changes above would differ.** S7 writes nothing at all, so the claim would still read as billed at version 1 with a batch filename recorded.
 
-And one prediction about failure, which is the attribute this document treats as mandatory. If the interchange header the batch produced is not exactly 105 characters, the request ends at `src/Billing/BillingProcessor/BillingClaimBatch.php:L221` with a single sentence and a partially written batch file already on disk in the outbound directory; if the upload then fails, the outbox row still reads success, because of the unconditional overwrite at `src/Billing/BillingProcessor/X12RemoteTracker.php:L119-L121`. In neither case does the claim's own state say anything is wrong.
+And two predictions about failure, which is the attribute this document treats as mandatory.
+
+**If the interchange header the batch produced is not exactly 105 characters, the request ends with a single sentence and no batch file at all.** VERIFIED: the length test and its `die()` are at `src/Billing/BillingProcessor/BillingClaimBatch.php:L221`, inside `append_claim()`, which is declared at `src/Billing/BillingProcessor/BillingClaimBatch.php:L202`. The only code in the class that writes to disk is `write_batch_file()`, declared at `src/Billing/BillingProcessor/BillingClaimBatch.php:L153`, whose `fopen` and `fwrite` are at `src/Billing/BillingProcessor/BillingClaimBatch.php:L159` and `src/Billing/BillingProcessor/BillingClaimBatch.php:L161`. Because the abort happens while the first claim is still being appended to the in-memory buffer, that writer is never reached: nothing is created in the outbound directory, not even an empty or truncated file.
+
+Two rows of the table above do not hold under this failure - one partly, one entirely - and knowing which is the point of the prediction. VERIFIED: the S4 row's first half still holds and its second half does not. The first updater call runs before any appending, at `src/Billing/BillingProcessor/Tasks/GeneratorX12.php:L151-L162`, and it passes an empty string for the filename, at `src/Billing/BillingProcessor/Tasks/GeneratorX12.php:L159`, so version 1 does exist with `status` 2 and `bill_process` 1 but with **no** `process_file` and no `process_time`. The second updater call, which is the one that records the batch name, is at `src/Billing/BillingProcessor/Tasks/GeneratorX12.php:L168`, after the append, and never runs. The S5 row does not hold at all: no tracker row is inserted either, because that insert is inside `write_batch_file()` at `src/Billing/BillingProcessor/BillingClaimBatch.php:L177-L184`. A reader who expected a filename recorded against a file that was never created will not find one, because the field that would have carried it was never written.
+
+**For a partner whose six required fields are all populated, so that the run reaches the upload rather than stopping at `parameter-error`, a failing upload still leaves the outbox row reading success.** VERIFIED: the overwrite is unconditional, at `src/Billing/BillingProcessor/X12RemoteTracker.php:L119-L121`.
+
+In none of these cases does the claim's own state say anything is wrong.
 
 ## Related Documents
 
@@ -1070,5 +1149,4 @@ Stage boundaries were derived by following control flow from each entry point ra
 - Correct this document by Pull Request, keeping the six-attribute structure and the citation convention intact.
 
 **Last Updated:** August 2026
-
 **License:** GPL v3
