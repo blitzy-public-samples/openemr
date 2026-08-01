@@ -74,7 +74,9 @@ Exactly two classes of claim exist, notated identically in all eight documents.
 
 **VERIFIED** - behaviour traced in the code as it stands at the recorded commit. Always carries a citation.
 
-> VERIFIED: the trading-partner usage indicator column defaults to `P` for production (`sql/database.sql:L10039`), that column is returned to the claim as `x12gsisa15()` (`src/Billing/Claim.php:L708-L710`), and both generators emit its value into the interchange envelope unaltered (`src/Billing/X125010837P.php:L75`, `src/Billing/X125010837I.php:L61`), so a newly created partner row transmits live unless an operator explicitly switches it to test.
+> VERIFIED: the trading-partner usage indicator column is declared not null with a default of `P` for production (`sql/database.sql:L10039`), that column is returned to the claim as `x12gsisa15()` (`src/Billing/Claim.php:L708-L710`), and both generators emit its value into the interchange envelope unaltered (`src/Billing/X125010837P.php:L75`, `src/Billing/X125010837I.php:L61`), so a partner row inserted without that column transmits live unless an operator explicitly switches it to test.
+
+That example also shows how far a VERIFIED claim is allowed to reach. The citations establish a column default, a read and two emissions, so the claim is scoped to the insert path that relies on the default; it does not extend to a row created through the trading-partner edit screen, whose persisted value is decided by what the form submitted. Where the wider claim was wanted, the wider claim would need its own citations, which is the discipline the whole set follows: **a verified statement covers the code path its citation covers and no further.** The scoped version of this rule, with the creation path traced, is in [transactions.md](transactions.md).
 
 **INFERRED** - probable intent rather than observed behaviour. Always carries a confidence of **High**, **Medium** or **Low** and a one-line statement of what that confidence rests on.
 
