@@ -1,6 +1,8 @@
 # OpenEMR Revenue Cycle and X12 EDI Documentation
 
-Recovered business logic for OpenEMR's revenue-cycle and X12 EDI subsystem, written down so that a claim can be traced from charge capture to cash posting and the code can be changed without silently altering what a patient or a payer is billed.
+Recovered business logic for OpenEMR's revenue cycle and its handling of X12, the electronic data interchange (EDI) standard that United States healthcare payers, providers and clearinghouses use to exchange claims, eligibility questions and payments; written down so that a claim can be traced from charge capture to cash posting and the code can be changed without silently altering what a patient or a payer is billed.
+
+**Scope and sources.** This index defines the conventions the seven sibling documents share, routes a reader to whichever of them answers the question at hand, and states what the set covers and what it deliberately leaves alone. It rests on the same first-hand reading as its siblings: 46 files in `src/Billing/`, 17 in `library/edihistory/`, three reachable models in `library/classes/`, one class in `src/PaymentProcessing/` documented at boundary level, the schema in `sql/database.sql`, the autoload configuration in `composer.json`, and the billing test tree. The full enumeration, with line counts, is in [Scope](#scope).
 
 ## Audience
 
@@ -13,9 +15,9 @@ These documents are written for engineers who are:
 
 **Knowledge assumed.** Fluency in PHP and SQL. Language constructs, prepared-statement binding, class inheritance and join syntax are used without explanation.
 
-**Knowledge not assumed.** Nothing about X12, the electronic data interchange (EDI) standard that United States healthcare payers and providers use to exchange claims and payments. Every X12 term, segment identifier, loop identifier and code list is expanded on first use in each document rather than once across the set, because readers arrive at individual documents through search rather than by reading the set in order.
+**Knowledge not assumed.** Nothing about X12, which the purpose statement above expands. Every X12 term, segment identifier, loop identifier and code list is expanded on first use in each document rather than once across the set, because readers arrive at individual documents through search rather than by reading the set in order.
 
-**Also not assumed.** Anything about the history of this codebase. Four architectural generations of the same subsystem coexist in the tree, and explaining why is treated as required content rather than as background material. The marker that separates them is mechanical rather than a matter of taste: `declare(strict_types=1)` appears in exactly 8 of the 46 files under `src/Billing/`, and [architecture.md](architecture.md) uses it to assign every in-scope file to a generation.
+**Also not assumed.** Anything about the history of this codebase. Four architectural generations of the same subsystem coexist in the tree, and explaining why is treated as required content rather than as background material. The marker that separates them is mechanical rather than a matter of taste: `declare(strict_types=1)` appears in exactly 8 of the 46 files under `src/Billing/`, and in 10 of the 67 documented files once the compatibility shim in `library/edihistory/` and the payment recorder in `src/PaymentProcessing/` are counted. [architecture.md](architecture.md) uses that marker to assign every in-scope file to a generation.
 
 ## How to read this
 
@@ -31,7 +33,7 @@ It walks the revenue cycle as fourteen numbered stages and, for each one, record
 
 → Start with [upgrade-risk-map.md](upgrade-risk-map.md)
 
-It carries one row per in-scope file: size, age of the last substantive change, change frequency, the tests that cover it or the literal word `none`, inbound coupling, and a resulting risk classification. Read its method section before its table, because raw last-commit dates are actively misleading in this repository - repository-wide mechanical sweeps have touched every file in the subsystem recently, so an unfiltered history reports all 67 files as freshly maintained. Where a file is classified high-risk, [defect-candidates.md](defect-candidates.md) is usually where the reason is set out in full.
+It carries one row per in-scope file: size, age of the last substantive change, change frequency, the tests that cover it or the literal word `none`, inbound coupling, and a resulting risk classification. Read its method section before its table: it explains why an unfiltered commit history is not a usable age signal for this subsystem, and publishes the mechanical-versus-substantive classifier it uses in place of one. Where a file is classified high-risk, the reason is frequently set out in full in [defect-candidates.md](defect-candidates.md).
 
 ## Document index
 
@@ -70,7 +72,7 @@ Exactly two classes of claim exist, notated identically in all eight documents.
 
 **VERIFIED** - behaviour traced in the code as it stands at the recorded commit. Always carries a citation.
 
-> VERIFIED: the trading-partner usage indicator defaults to `P` for production, so a newly created partner row transmits live unless an operator explicitly switches it to test (`sql/database.sql:L10039`).
+> VERIFIED: the trading-partner usage indicator column defaults to `P` for production (`sql/database.sql:L10039`), that column is returned to the claim as `x12gsisa15()` (`src/Billing/Claim.php:L708-L710`), and both generators emit its value into the interchange envelope unaltered (`src/Billing/X125010837P.php:L75`, `src/Billing/X125010837I.php:L61`), so a newly created partner row transmits live unless an operator explicitly switches it to test.
 
 **INFERRED** - probable intent rather than observed behaviour. Always carries a confidence of **High**, **Medium** or **Low** and a one-line statement of what that confidence rests on.
 
@@ -112,20 +114,20 @@ Sixty-seven files and 32,621 lines are documented. The enumeration below is this
 | Surface | Files | Lines |
 |---------|------:|------:|
 | `src/Billing/**` - 14 top-level files (10,945 lines), `BillingProcessor/` 10, `BillingProcessor/Tasks/` 13 files yielding 11 concrete task classes plus 2 abstract bases, `BillingProcessor/Traits/` 1, `DaySheet/` 4, `EdiHistory/` 4 | 46 | 16,186 |
-| `library/edihistory/**` - 13 top-level procedural scripts, 3 PHP code tables under `codes/`, plus the spreadsheet `library/edihistory/codes/code_formatter.ods` that evidently generated them | 17 | 14,979 |
+| `library/edihistory/**` - 13 top-level procedural scripts, 3 PHP code tables under `codes/`, plus the spreadsheet `library/edihistory/codes/code_formatter.ods`, which sits in the same directory, is not PHP, and is referenced by no code in the repository; what it is for is registered as a labelled inference in [architecture.md](architecture.md) | 17 | 14,979 |
 | `library/classes/X12Partner.class.php` (496 lines), `library/classes/InsuranceCompany.class.php` (416), `library/classes/Controller.class.php` (316) | 3 | 1,228 |
-| `src/PaymentProcessing/Recorder.php` - contract only, documented because it is the destination named by a deprecation notice inside the legacy accounts-receivable poster | 1 | 228 |
+| `src/PaymentProcessing/Recorder.php` - a concrete implementation documented here at boundary level, that is, for the surface its methods present rather than their internals (`class Recorder` at `src/PaymentProcessing/Recorder.php:L22`); in scope because it is the destination named by a deprecation notice inside the legacy accounts-receivable poster (`src/Billing/SLEOB.php:L221`) | 1 | 228 |
 | **Total** | **67** | **32,621** |
 
 Line figures count PHP source lines; `code_formatter.ods` is a binary and contributes none, which is why the second row counts 17 files but only 16 files' worth of lines.
 
 Five supporting counts define the rest of the documented surface, and each was derived by enumeration:
 
-- **21** database tables read or written by in-scope code. Fifteen of them are named in no existing document, and two of those fifteen are referenced by this code more often than either `claims` or `ar_activity` - which is why an inventory assembled from the obvious billing table names alone comes out badly short. Every one of the 21 is anchored to its DDL, with its reference count, in [claim-lifecycle.md](claim-lifecycle.md).
-- **9** X12 transaction types: 837P and 837I (professional and institutional claims), 835 (remittance advice), 270 and 271 (eligibility request and response), 276 and 277 (claim-status inquiry and response), 278 (services review, that is, authorisation) and the 997/999 acknowledgement family. The handler is selected from a single dispatch map of eight functional-group codes at `src/Billing/EdiHistory/X12File.php:L101-L102`; the count reaches nine because the one 837 entry in that map covers both the professional and the institutional flavour, which are built by different code paths.
+- **21** database tables read or written by in-scope code. Fifteen of them are named in no existing document, and two of those fifteen are referenced by this code more often than either `claims` or `ar_activity`. Every one of the 21 is anchored to its DDL, with its reference count, in [claim-lifecycle.md](claim-lifecycle.md).
+- **9** X12 transaction types: 837P and 837I (professional and institutional claims), 835 (remittance advice), 270 and 271 (eligibility request and response), 276 and 277 (claim-status inquiry and response), 278 (services review, that is, authorisation) and the 997/999 acknowledgement family. The handler is selected from a single dispatch map of eight functional-group codes at `src/Billing/EdiHistory/X12File.php:L101-L102`; the count reaches nine because the one 837 entry in that map covers both the professional and the institutional flavour, and those are built by two separate generators (`src/Billing/X125010837P.php`, `src/Billing/X125010837I.php`).
 - **14** lifecycle stages: one boundary stage, S0 (encounter and fee-sheet entry), plus S1 through S13 from charge capture to history indexing.
-- **32** trading-partner configuration columns, at `sql/database.sql:L10026-L10057` inside a `CREATE TABLE` block spanning `sql/database.sql:L10025-L10059`. A count of 33 for this table includes the `PRIMARY KEY` clause at `sql/database.sql:L10058`, which is not a column. [transactions.md](transactions.md) documents all 32 with a live-versus-dead consumer census for each, because several are read by nothing but the model that declares them.
-- **16** billing test files totalling 2,994 lines, read as coverage evidence only. Thirteen live under `tests/Tests/Isolated/Billing/` and execute only under the secondary `phpunit-isolated.xml` configuration; three live under `tests/Tests/Services/Billing/`. Coverage is real, and it is distributed inversely to consequence, which [upgrade-risk-map.md](upgrade-risk-map.md) sets out file by file.
+- **32** trading-partner configuration columns, at `sql/database.sql:L10026-L10057` inside a `CREATE TABLE` block spanning `sql/database.sql:L10025-L10059`. A count of 33 for this table includes the `PRIMARY KEY` clause at `sql/database.sql:L10058`, which is not a column. [transactions.md](transactions.md) documents all 32, each with a census of what actually reads it, which is where the columns that nothing consumes are identified.
+- **16** billing test files totalling 2,994 lines, read as coverage evidence only. Thirteen live under `tests/Tests/Isolated/Billing/` and execute only under the secondary `phpunit-isolated.xml` configuration; three live under `tests/Tests/Services/Billing/`. Which classes those tests actually exercise, and which of the largest in-scope files they leave with the literal coverage value `none`, is set out file by file in [upgrade-risk-map.md](upgrade-risk-map.md).
 
 ### Boundary only
 
@@ -133,7 +135,7 @@ Five systems are named as entry or exit points so that a reader can find the sea
 
 | Boundary system | Resolved paths | Treated as |
 |-----------------|----------------|------------|
-| Fee sheet user interface | `interface/forms/fee_sheet/**`, `src/Forms/FeeSheet/**` | Entry point of stage S0, and home of the only optimistic-concurrency control in the charge-capture path: a visit checksum posted with the form and compared before the save is applied (`interface/forms/fee_sheet/new.php:L510-L511`). Screen internals are not documented. |
+| Fee sheet user interface | `interface/forms/fee_sheet/**`, `src/Forms/FeeSheet/**` | Entry point of stage S0, and home of the only optimistic-concurrency control in the charge-capture path: a visit checksum computed as the form is built (`interface/forms/fee_sheet/new.php:L487`), posted back in a hidden field (`interface/forms/fee_sheet/new.php:L1768`), compared on submission (`interface/forms/fee_sheet/new.php:L510-L511`), and guarding the charge-saving branch, which runs only if that comparison raised no message (`interface/forms/fee_sheet/new.php:L534`). The guard covers that branch rather than the whole request: a diagnosis-update save earlier in the same handler runs before the comparison (`interface/forms/fee_sheet/new.php:L491-L501`). Screen internals are not documented. |
 | EOB posting screens | `interface/billing/sl_eob_process.php`, `sl_eob_search.php`, `sl_eob_invoice.php`, `sl_eob_patient_note.php`, with remittance intake at `interface/billing/era_payments.php`; 31 PHP files in `interface/billing/**` | Entry points of stages S9 and S11, subject to the interpretation recorded below. |
 | Clearinghouse module integrations | `interface/modules/custom_modules/**`, plus the Composer-declared `claimrevolution/oe-module-claimrev-connect` at `composer.json:L52` | Exit point of stage S6. The declared module is absent from this checkout: `interface/modules/custom_modules/` holds seven other modules and no `oe-module-claimrev-connect` directory, so its behaviour cannot be read from this repository at all. The built-in transports - the SFTP path and the real-time HTTP eligibility path - are documented. |
 | Patient statements | `sites/*/statement.inc.php`, required at `interface/billing/era_payments.php:L34`, and `interface/patient_file/front_payment.php` | Downstream consumer of accounts-receivable data. The statement include is site-level and operator-editable, so its content is not a property of this repository. |
@@ -159,7 +161,7 @@ One pair of requirements pulls in opposite directions, and the resolution is rec
 - Non-primary insurance adjustments are reported as notes and posted with a zero amount (`interface/billing/sl_eob_process.php:L612-L631`).
 - The accounts-receivable payer type is derived from a user-interface label by string offset, at three separate call sites (`interface/billing/sl_eob_process.php:L566`, `interface/billing/sl_eob_process.php:L628`, `interface/billing/sl_eob_process.php:L649`).
 - A site-level global flag adds codes from the payer's remittance that match nothing on the claim into the charge table (`interface/billing/sl_eob_process.php:L501`).
-- A two-pass parse commits accounts-receivable session rows before the second pass has finished validating the file (`interface/billing/sl_eob_process.php:L850-L851`).
+- A two-pass parse commits accounts-receivable session rows before the file has been validated. The check pass runs first (`interface/billing/sl_eob_process.php:L850`) and calls back into the screen at the end of its loop (`src/Billing/ParseERA.php:L553`); that callback inserts the session row (`interface/billing/sl_eob_process.php:L277-L285`); and the interchange-trailer check that decides whether the file ended prematurely happens only afterwards (`src/Billing/ParseERA.php:L555-L556`), with the posting pass following on the next line (`interface/billing/sl_eob_process.php:L851`).
 
 **Resolution.** `interface/billing/**` is boundary-only for its user-interface, presentation and screen-flow internals, which is what "internals" means for a screen. The specific lines at which it makes accounts-receivable posting decisions are cited, because those lines are revenue-cycle business logic that happens to live in a screen file.
 
@@ -167,7 +169,7 @@ One pair of requirements pulls in opposite directions, and the resolution is rec
 
 ## Keeping this current
 
-- **Every anchor is relative to one commit.** Branch `master`, head `b7a7e690e419de3451740f995b768a8e8e5fba87`, on project version 8.3.0-dev (`version.php:L17-L20`) with database schema version 541 (`version.php:L33`). The subsystem's own runtime floor is PHP 8.2.0 (`composer.json:L14`), with continuous integration exercising 8.2 through 8.5. Line numbers drift; a citation that no longer lands where it says it does means the anchor moved, not that the claim was wrong when it was written.
+- **Every anchor is relative to one commit.** Branch `master`, head `b7a7e690e419de3451740f995b768a8e8e5fba87`, on project version 8.3.0-dev (`version.php:L17-L20`) with database schema version 541 (`version.php:L33`). The subsystem's own runtime floor is PHP 8.2.0 (`composer.json:L14`), with continuous integration exercising 8.2 through 8.6: the syntax check runs the whole matrix (`.github/workflows/syntax.yml:L28`) and the isolated test suite runs the same span (`.github/workflows/isolated-tests.yml:L30-L35`), while single-version jobs pin 8.5 (`.github/workflows/build-release.yml:L154`, `.github/workflows/database.yml:L34`, `.github/workflows/acceptance-docker.yml:L341`). Line numbers drift; a citation that no longer lands where it says it does means the anchor moved, not that the claim was wrong when it was written.
 - **The risk table is regenerable.** [upgrade-risk-map.md](upgrade-risk-map.md) publishes the commands and the mechanical-versus-substantive commit classifier that produced it, so it can be re-derived rather than hand-maintained. That method is not duplicated here.
 - **No code was executed to produce this set.** PHP and Composer are not installed in the authoring environment, so no part of the subsystem was run and no test suite was executed. Every claim rests on static reading of file contents at the commit above. This is exactly why [defect-candidates.md](defect-candidates.md) proposes a verification for each entry - a named test with the configuration it runs under, or a reproduction with screen, input and expected outcome - instead of asserting a reproduction it has not performed.
 - **No user-specified rules govern this documentation.** The project's rules facility was consulted and reports that none were provided, so nothing here was written to satisfy a rule and no rule is invented to justify a decision. In their place these documents bind themselves to eleven conventions taken from the repository's own observed practice: the markdown house style, modelled on `Documentation/api/DEVELOPER_GUIDE.md:L1-L3` for the opening and on `Documentation/api/README.md:L7-L14` for the index table; the quality gates listed in the next bullet; the citation format, the claim-class notation and the source-of-truth ordering defined above; the audience register declared at the top of this file; the separation of document purposes that produced eight files instead of one; the rule that no document in the directory is orphaned; the link convention used inside `docs/`, which is sibling documents by bare filename, repository-root files through `../` and intra-document targets by anchor; plain ASCII punctuation, the one exception being the arrow of the reader-routing idiom this repository already uses (`Documentation/api/README.md:L29`); and GPL v3 attribution.
@@ -193,5 +195,5 @@ OpenEMR is an open-source project. To improve these documents:
 - **Discuss:** [Community Forum](https://community.open-emr.org/)
 - **Submit Changes:** [Pull Requests](https://github.com/openemr/openemr/pulls)
 
-**Last Updated:** July 2026
+**Last Updated:** August 2026
 **License:** GPL v3
