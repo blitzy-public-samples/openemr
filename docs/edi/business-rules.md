@@ -228,10 +228,12 @@ That is `src/Billing/BillingUtilities.php:L1774-L1776`. VERIFIED: when no primar
 - **Blast radius:** The two sides are rounded independently: each line is rounded once and the total is rounded once, after the additions. For a claim with enough lines, the rounded total can differ by a cent from the sum of the rounded lines, and a payer that checks the arithmetic rejects the claim rather than paying it short. Changing either `sprintf` call, or accumulating in cents instead, changes which claims a payer accepts.
 
 ```php
-$clm_total_charges += floatval($claim->cptCharges($prockey));
+$clm_total_charges = 0;
+for ($prockey = 0; $prockey < $proccount; ++$prockey) {
+    $clm_total_charges += floatval($claim->cptCharges($prockey));
 ```
 
-That is `src/Billing/X125010837P.php:L667`. VERIFIED: the source value has already passed through the identity cleaner described in [BR-G6](#br-g6-values-passed-through-the-cleaner-are-uppercased-and-filtered-to-a-fixed-character-set), so it reaches `floatval()` as an uppercased, character-filtered string rather than as a number.
+That is `src/Billing/X125010837P.php:L665-L667`. The total starts as the integer zero and is accumulated once per procedure, so the addition is the only place the individual line charges meet. VERIFIED: the source value has already passed through the identity cleaner described in [BR-G6](#br-g6-values-passed-through-the-cleaner-are-uppercased-and-filtered-to-a-fixed-character-set), so it reaches `floatval()` as an uppercased, character-filtered string rather than as a number.
 
 ### BR-A5 Patient responsibility is excluded from the adjustment total
 
@@ -277,10 +279,11 @@ That is `src/Billing/ParseERA.php:L51-L53`. Note that this rule and [BR-A1](#br-
 - **Blast radius:** The flip changes a payer-supplied amount before it reaches the ledger, so the ledger and the remittance file disagree by twice the adjustment. Removing the exemption reintroduces an imbalance on every remittance carrying that incentive code; widening it to other codes silently converts write-offs into credits.
 
 ```php
+// removing inversion for CO*144 MIPS incentive adjustment to prevent claim balancing
 if ($seg[1] == 'CO' && $seg[$k + 1] < 0 && $seg[$k] !== '144') {
 ```
 
-That is `src/Billing/ParseERA.php:L402`. The reason-code comparison is strict while the group-code comparison beside it is loose, so the exemption requires the code to arrive as the exact three-character string.
+That is `src/Billing/ParseERA.php:L401-L402`, the comment being the one the Intent field reads. The reason-code comparison is strict while the group-code comparison beside it is loose, so the exemption requires the code to arrive as the exact three-character string, and the sign flip the condition guards is at `src/Billing/ParseERA.php:L405`.
 
 ### BR-A8 A non-numeric adjustment amount becomes zero
 
@@ -418,11 +421,9 @@ That is `src/Billing/ParseERA.php:L25-L27`. The test is for an empty value rathe
 } elseif ($segid == 'AMT' && $seg[1] == 'B6' && $out['loopid'] == '2110') {
     $i = count($out['svc']) - 1;
     $out['svc'][$i]['allowed'] = (float)$seg[2]; // report this amount as a note
-} elseif ($segid == 'AMT' && $out['loopid'] == '2110') {
-    $out['warnings'] .= "$inline at service level ignored.\n";
 ```
 
-That is `src/Billing/ParseERA.php:L419-L423`. The two branches are adjacent and differ only in the qualifier test, which is what makes the exception easy to miss: the general case is the second branch, and the qualified case above it is the only amount segment in the parser whose value survives.
+That is `src/Billing/ParseERA.php:L419-L421`. The general arm sits immediately below it, at `src/Billing/ParseERA.php:L422-L423`, and differs only in the qualifier test, which is what makes the exception easy to miss: the general case is the second branch, and the qualified case above it is the only amount segment in the parser whose value survives.
 
 ### BR-B7 A deposit is balanced against live ledger lines only, and only in a browser alert
 
@@ -595,9 +596,10 @@ That is `src/Billing/BillingProcessor/BillingClaim.php:L132-L134`. The constant 
 
 ```php
 $sql = "SELECT x.processing_format from x12_partners as x where x.id =?";
+$result = sqlQuery($sql, [$this->getPartner()]);
 ```
 
-That is `src/Billing/BillingProcessor/BillingClaim.php:L137`. One query per claim, executed inside the constructor.
+That is `src/Billing/BillingProcessor/BillingClaim.php:L137-L138`. One query per claim, executed inside the constructor, whose result is guarded for emptiness and retained as the claim's target at `src/Billing/BillingProcessor/BillingClaim.php:L139-L142`.
 
 ### BR-D4 A claim with no trading partner is dropped from an electronic run only
 
@@ -611,12 +613,10 @@ That is `src/Billing/BillingProcessor/BillingClaim.php:L137`. One query per clai
 ```php
 if (($billingClaim->getPartner() == -1) && $bn_x12) {
     // If the x-12 partner is unassigned, don't process it.
-    $this->logger->printToScreen(xl("No X-12 partner assigned for claim " . $billingClaim->getId()));
     continue;
-}
 ```
 
-That is `src/Billing/BillingProcessor/BillingProcessor.php:L113-L117`. The `continue` drops the claim from the collection being assembled, and because the condition is conjunctive the same claim survives a run whose electronic flag is unset.
+That is `src/Billing/BillingProcessor/BillingProcessor.php:L113-L116`, with the screen message at `src/Billing/BillingProcessor/BillingProcessor.php:L115` omitted from the excerpt. The `continue` drops the claim from the collection being assembled, and because the condition is conjunctive the same claim survives a run whose electronic flag is unset.
 
 ### BR-D5 The claim identifier is recovered from the remittance by counting its parts
 
@@ -647,13 +647,12 @@ That is `src/Billing/SLEOB.php:L30-L32`. The split accepts either a space or a h
 - **Blast radius:** The rebuild joins every modifier recorded for that code with colons, so a charge carrying two modifiers is matched by a three-part key and a charge carrying one by a two-part key. The loop that builds it iterates the whole code list and overwrites the key on each match, so if a code appears more than once the last occurrence wins. A failure to match here does not reach the charge sanity check registered as [BR-A9](#br-a9-a-charge-that-disagrees-with-the-invoice-by-one-cent-blocks-the-posting), because that check sits inside the opposite branch: an empty previous charge sends control to the unmatched-service branch at `interface/billing/sl_eob_process.php:L495-L535` instead, and what happens there is decided by a site-level switch rather than by any comparison of amounts. With the switch off, `interface/billing/sl_eob_process.php:L504` raises the error flag and the line is reported as merely returned by the payer, so nothing is posted for it. With the switch on, no error is raised and the payer's own reported charge is inserted into the charge table at `interface/billing/sl_eob_process.php:L507-L521` and added to the running invoice total; that switch is registered as [BR-I3](#br-i3-one-switch-turns-a-payer-reported-unknown-code-into-a-charge).
 
 ```php
-if (!$prev && !$svc['mod'] && in_array($svc['code'], $cpts)) {
-    foreach ($cpts as $v) {
-        if ($v === $svc['code']) {
-            $codekey = $v . ':' . implode(':', $mods[$v] ?? []);
+foreach ($cpts as $v) {
+    if ($v === $svc['code']) {
+        $codekey = $v . ':' . implode(':', $mods[$v] ?? []);
 ```
 
-That is `interface/billing/sl_eob_process.php:L461-L464`. The rebuilt key joins every modifier recorded for that code with colons, and the loop assigns on each match rather than stopping at the first.
+That is `interface/billing/sl_eob_process.php:L462-L464`, reached only under the condition at `interface/billing/sl_eob_process.php:L461`, which requires that no charge matched the key, that the payer sent no modifier, and that the bare code appears in the list built from the invoice's own charge keys at `interface/billing/sl_eob_process.php:L436-L443`. The rebuilt key joins every modifier recorded for that code with colons, and the loop assigns on each match rather than stopping at the first.
 
 ### BR-D7 The application sender code falls back to the interchange sender identifier
 
@@ -668,10 +667,9 @@ That is `interface/billing/sl_eob_process.php:L461-L464`. The rebuilt key joins 
 $tmp = ($this->x12_partner['x12_gs02'] ?? '');
 if ($tmp === '') {
     $tmp = ($this->x12_partner['x12_sender_id'] ?? '');
-}
 ```
 
-That is `src/Billing/Claim.php:L715-L718`. The test is an identity comparison against the empty string on an untrimmed value, so a partner row holding a single space counts as configured.
+That is `src/Billing/Claim.php:L715-L717`. The test is an identity comparison against the empty string on an untrimmed value, so a partner row holding a single space counts as configured.
 
 ### BR-D8 Eligibility uses whichever primary coverage row the database returns first
 
@@ -735,10 +733,12 @@ That is `src/Billing/SLEOB.php:L284-L285`. The watermark is coerced to a number 
 - **Blast radius:** VERIFIED: the converter is invoked seven times from six expressions, all of them UB-04 form fields on an institutional claim - the statement period at `src/Billing/X125010837I.php:L387` and `src/Billing/X125010837I.php:L388`, the admission date at `src/Billing/X125010837I.php:L395`, the two ends of an occurrence span at `src/Billing/X125010837I.php:L519`, which calls it twice within one expression, the occurrence date at `src/Billing/X125010837I.php:L550` and the value-information date at `src/Billing/X125010837I.php:L582`. Dates of birth are not among them: the subscriber's birth date is emitted through a different accessor, at `src/Billing/X125010837I.php:L265`, and never reaches this function. The seven invocations divide into two kinds: three are anchored to the encounter itself, being the statement period and the admission date, and four are anchored to a reported event, being the two ends of the occurrence span, the occurrence date and the value-information date. INFERRED (confidence: High): the hardcoded century is effectively always right for the three encounter-anchored fields and is a live exposure on the four event-anchored ones, because an encounter date before 2000 would mean a claim filed decades late whereas an occurrence, occurrence-span or value-information field records when a reported event happened rather than when the encounter did. Basis: the UB-04 field positions the four event-anchored calls read are the occurrence, occurrence-span and value-code groups, and no code in the generator constrains how far in the past those may fall. The exposure therefore covers the value-information field as well as the occurrence fields, rather than the occurrence fields alone. Changing the literal to a computed century would change every date this function produces, which is why the two tests that pin its output exist; they run under the isolated configuration described in [upgrade-risk-map.md](upgrade-risk-map.md).
 
 ```php
-return ('20' . substr((string) $frmdate, 4, 2) . substr((string) $frmdate, 0, 2) . substr((string) $frmdate, 2, 2));
+public static function x12Date($frmdate)
+{
+    return ('20' . substr((string) $frmdate, 4, 2) . substr((string) $frmdate, 0, 2) . substr((string) $frmdate, 2, 2));
 ```
 
-That is `src/Billing/X125010837I.php:L21`.
+That is `src/Billing/X125010837I.php:L19-L21`. The six-character date is the method's only parameter, so no argument and no lookup supplies a century; the same three lines are read for a different consequence by [BR-E4](#br-e4-an-empty-institutional-date-becomes-the-two-character-string-20).
 
 ### BR-E4 An empty institutional date becomes the two-character string 20
 
@@ -917,10 +917,9 @@ That is `src/Billing/BillingProcessor/X12RemoteTracker.php:L119-L121`. Neither s
 $isa_length = strlen($this->bat_content) - 1;
 if ($isa_length != 105) {
     die("Error:<br />\n ISA must be 105 characters in length; " . "found $isa_length instead");
-}
 ```
 
-That is `src/Billing/BillingProcessor/BillingClaimBatch.php:L219-L222`. The length is measured on the accumulated batch content rather than on the segment alone, and the branch ends the request outright instead of returning a failure to its caller. Both this check and the leading-segment check below it are reached only while that accumulated content is still empty, which is what confines them to the first contributing claim.
+That is `src/Billing/BillingProcessor/BillingClaimBatch.php:L219-L221`. The length is measured on the accumulated batch content rather than on the segment alone, and the branch ends the request outright instead of returning a failure to its caller. Both this check and the leading-segment check below it are reached only while that accumulated content is still empty, which is what confines them to the first contributing claim.
 
 ### BR-F5 One batch file is queued once for every partner in the batch
 
@@ -934,14 +933,10 @@ That is `src/Billing/BillingProcessor/BillingClaimBatch.php:L219-L222`. The leng
 ```php
 foreach ($unique_x12_partners as $x12_partner_id) {
     X12RemoteTracker::create([
-        'x12_partner_id' => $x12_partner_id,
         'x12_filename' => $this->bat_filename,
-        'status' => X12RemoteTracker::STATUS_WAITING,
-        'claims' => json_encode($this->claims)
-    ]);
 ```
 
-That is `src/Billing/BillingProcessor/BillingClaimBatch.php:L177-L183`. The filename queued is the one batch file the run produced, so every distinct partner in the batch receives a queue row naming the same file.
+That is `src/Billing/BillingProcessor/BillingClaimBatch.php:L177-L180`, with the partner element at `src/Billing/BillingProcessor/BillingClaimBatch.php:L179` omitted from the excerpt. The filename queued is the one batch file the run produced, so every distinct partner in the batch receives a queue row naming the same file; the waiting status and the serialised claims payload complete the row at `src/Billing/BillingProcessor/BillingClaimBatch.php:L181-L182`.
 
 ### BR-F6 The attachment segment is emitted without being counted
 
@@ -1093,10 +1088,12 @@ That is `interface/billing/sl_eob_process.php:L564-L566`. The payer type is the 
 - **Blast radius:** A claim whose payer level was not recognised carries a value that the ledger would read as a patient responsibility. The two values never meet directly today, because the posting path derives its payer type from the display label per [BR-G2](#br-g2-the-ledger-payer-type-is-cut-out-of-a-user-interface-label) rather than from the claim model, but any future code that carried a claim-model payer type into the ledger would silently reassign a payer's money to the patient. Because there is no check constraint on the column, the database would accept it.
 
 ```sql
+code           varchar(20)   NOT NULL            COMMENT 'empty means claim level',
+modifier       varchar(12)   NOT NULL DEFAULT '',
 payer_type     int           NOT NULL            COMMENT '0=pt, 1=ins1, 2=ins2, etc',
 ```
 
-That is `sql/database.sql:L10195`. The same value is the unknown sentinel in the claim model, declared at `src/Billing/BillingProcessor/BillingClaim.php:L79`.
+That is `sql/database.sql:L10193-L10195`, the three columns that say what a ledger line is about, ending with the one this rule concerns. The same value is the unknown sentinel in the claim model, declared at `src/Billing/BillingProcessor/BillingClaim.php:L79`.
 
 ### BR-G4 A ledger line is either a payment or an adjustment, by comment alone
 
@@ -1140,10 +1137,12 @@ That is `src/Billing/ParseERA.php:L277-L278`. The column the word lands in is th
 - **Blast radius:** Deleting rather than replacing means a name written with an accented letter loses that letter entirely rather than gaining a substitute, so a patient's name can reach a payer misspelled in a way that fails an eligibility match. Because the filter runs after the uppercase, adding a lowercase character to the permitted set would have no effect. The cleaner is also applied to monetary values on the way into the charge accumulation registered as [BR-A4](#br-a4-charge-totals-are-accumulated-as-floats-and-printed-at-two-decimals), where the uppercase is inert but the character filter is not. The values the cleaner is never called on are outside this rule entirely: the envelope accessors named in the evidence are emitted as stored, so nothing in this entry describes what reaches the wire through them.
 
 ```php
-return preg_replace('/[^A-Z0-9!"\\&\'()+,\\-.\\/;?=@ ]/', '', strtoupper((string) $str));
+public function x12Clean($str)
+{
+    return preg_replace('/[^A-Z0-9!"\\&\'()+,\\-.\\/;?=@ ]/', '', strtoupper((string) $str));
 ```
 
-That is `src/Billing/Claim.php:L219`.
+That is `src/Billing/Claim.php:L217-L219`; the closing brace on the line below ends the method, so its body is that one expression, with no validation and no error return, which is why calling it is the only way a value gets filtered. The docblock immediately above it, at `src/Billing/Claim.php:L211-L216`, is what names the character set and the page of the implementation guide that defines it.
 
 ### BR-G7 An encounter counts as billed only when every fee-bearing charge is billed
 
@@ -1158,13 +1157,9 @@ That is `src/Billing/Claim.php:L219`.
 if ($brow['billed'] == 0) {
     $billed = 0;
 } else {
-    if ($billed < 0) {
-        $billed = 1;
-    }
-}
 ```
 
-That is `src/Billing/BillingUtilities.php:L1754-L1760`. The accumulator starts at minus one at `src/Billing/BillingUtilities.php:L1736`, so a single unbilled row forces it to zero and no later row can lift it, because the other branch only raises a value that is still negative.
+That is `src/Billing/BillingUtilities.php:L1754-L1756`. The accumulator starts at minus one at `src/Billing/BillingUtilities.php:L1736`, so a single unbilled row forces it to zero and no later row can lift it, because the other arm, at `src/Billing/BillingUtilities.php:L1756-L1760`, raises the value only while it is still negative.
 
 ### BR-G8 A deposit is found by a reference that is neither unique nor nullable
 
@@ -1178,12 +1173,9 @@ That is `src/Billing/BillingUtilities.php:L1754-L1760`. The accumulator starts a
 ```php
 $id = QueryUtils::fetchSingleValue(
     'SELECT session_id FROM ar_session WHERE reference = ?',
-    'session_id',
-    [$reference],
-);
 ```
 
-That is `src/PaymentProcessing/Recorder.php:L45-L49`. The column is declared `NOT NULL DEFAULT ''` with no unique index at `sql/database.sql:L10163`, so an unset reference is the empty string and matches every other unset reference, and the query returns whichever such row the database yields first.
+That is `src/PaymentProcessing/Recorder.php:L45-L46`, the query having no ordering clause and no limit; the column name and the bound reference complete the call at `src/PaymentProcessing/Recorder.php:L47-L49`. The column is declared `NOT NULL DEFAULT ''` with no unique index at `sql/database.sql:L10163`, so an unset reference is the empty string and matches every other unset reference, and the query returns whichever such row the database yields first.
 
 ## Group H Control Number and Sequence Allocation
 
@@ -1199,10 +1191,12 @@ Eight rules. Control numbers are the identifiers a payer uses to acknowledge or 
 - **Blast radius:** Two concurrent submissions for the same patient and encounter can read the same maximum and compute the same next version, and because the version participates in the primary key the second insert fails on a duplicate key rather than silently overwriting. That is the safe failure mode of the two available, and it is worth being precise about: the transaction wrapper does exist, so this is not an unguarded allocation, but a transaction alone does not serialise a plain aggregate read at the default isolation level. The comment above the equivalent modern allocation records the same race in its own words, which is registered as [BR-H2](#br-h2-the-ledger-sequence-number-is-allocated-the-same-way-and-the-code-says-so); nothing in this generation says anything about it. The claim data itself is stored in a text column at `sql/database.sql:L391`, which caps a submitted claim at 65,535 bytes.
 
 ```php
-'SELECT IFNULL(MAX(version), 0) + 1 AS increment FROM claims WHERE patient_id = ? AND encounter_id = ?',
+$version = sqlQuery(
+    'SELECT IFNULL(MAX(version), 0) + 1 AS increment FROM claims WHERE patient_id = ? AND encounter_id = ?',
+    [$patient_id, $encounter_id]
 ```
 
-That is `src/Billing/BillingUtilities.php:L1679`. The transaction that encloses it opens at `src/Billing/BillingUtilities.php:L1677`, and the failure mode is registered in [defect-candidates.md](defect-candidates.md).
+That is `src/Billing/BillingUtilities.php:L1678-L1680`. The transaction that encloses it opens at `src/Billing/BillingUtilities.php:L1677`, the aggregate is read with no `FOR UPDATE` clause and no retry around it, and the failure mode is registered in [defect-candidates.md](defect-candidates.md).
 
 ### BR-H2 The ledger sequence number is allocated the same way, and the code says so
 
@@ -1232,13 +1226,11 @@ That is `src/PaymentProcessing/Recorder.php:L210-L212`. The aggregate is read in
 
 ```sql
 INSERT INTO claims SET
-    patient_id = ?,
-    encounter_id = ?,
     bill_time = NOW(), status = ? ,
     version = ?
 ```
 
-That is `src/Billing/BillingUtilities.php:L1698-L1702`. Five columns are named, the version among them is bound from the computed increment, and every other column of the row takes its schema default.
+That is `src/Billing/BillingUtilities.php:L1698-L1702`, with the two identifier columns at `src/Billing/BillingUtilities.php:L1699-L1700` omitted from the excerpt. Five columns are named in all, the version among them is bound from the computed increment, and every other column of the row takes its schema default.
 
 ### BR-H4 Interchange and group control numbers are two separate draws on one sequence
 
@@ -1250,18 +1242,11 @@ That is `src/Billing/BillingUtilities.php:L1698-L1702`. Five columns are named, 
 - **Blast radius:** The `(9)` in the column declaration is a display hint rather than a constraint, so the counter is an ordinary 32-bit unsigned integer holding values up to 4294967295 with no key on it. Any value above 999999999 renders as ten characters, at which point the pad becomes a no-op and the interchange control number is emitted one character too wide. That widens the interchange header past the fixed length the batch rebuild depends on, and it is the length check registered as [BR-F4](#br-f4-a-malformed-interchange-header-terminates-the-whole-batch-run) that would catch it, by terminating the run. Because the two draws are unsynchronised, two batch runs overlapping in time interleave their values, so an envelope can carry an interchange number and a group number that are not adjacent; nothing reads the pair back afterwards, so the interleaving leaves no trace. Separately, every draw consumes a value even when the resulting file is never transmitted, and the attachment segment in [BR-F6](#br-f6-the-attachment-segment-is-emitted-without-being-counted) draws one per employment-related claim.
 
 ```php
-public static function getIsa13(): string
-{
-    return str_pad((string)QueryUtils::ediGenerateId(), 9, '0', STR_PAD_LEFT);
-}
-
-public static function getGs06(): string
-{
-    return (string) QueryUtils::ediGenerateId();
-}
+return str_pad((string)QueryUtils::ediGenerateId(), 9, '0', STR_PAD_LEFT);
+return (string) QueryUtils::ediGenerateId();
 ```
 
-That is `src/Billing/BillingProcessor/BillingClaimBatchControlNumber.php:L22-L30`. Both methods call the same generator, so one batch consumes two values from one sequence, and only the interchange value is padded to nine characters.
+Those are the two returns, at `src/Billing/BillingProcessor/BillingClaimBatchControlNumber.php:L22-L30`, with the two method signatures, their braces and the blank line between the methods omitted from the excerpt. Both returns call the same generator, so one batch consumes two values from one sequence, and only the interchange value is padded to nine characters.
 
 ### BR-H5 A validation run substitutes literal control numbers
 
@@ -1274,12 +1259,10 @@ That is `src/Billing/BillingProcessor/BillingClaimBatchControlNumber.php:L22-L30
 
 ```php
 $this->bat_icn = (str_contains($this->context['claims'][0]->action ?? '', 'validate')) ? '000000001' : BillingClaimBatchControlNumber::getIsa13();
-$this->bat_filename = date("Y-m-d-His", $this->bat_time) . "-batch" . $this->ext;
-$this->bat_filedir = OEGlobalsBag::getInstance()->get('OE_SITE_DIR') . DIRECTORY_SEPARATOR . "documents" . DIRECTORY_SEPARATOR . "edi";
 $this->bat_gs06 = (str_contains($this->context['claims'][0]->action ?? '', 'validate')) ? '2' : BillingClaimBatchControlNumber::getGs06();
 ```
 
-That is `src/Billing/BillingProcessor/BillingClaimBatch.php:L63-L66`. Both ternaries test the action string of the first claim in the batch, so the substitution is decided once for the whole batch rather than per claim.
+That is `src/Billing/BillingProcessor/BillingClaimBatch.php:L63-L66`, with the batch filename and directory assignments at `src/Billing/BillingProcessor/BillingClaimBatch.php:L64-L65` omitted from the excerpt. Both ternaries test the action string of the first claim in the batch, so the substitution is decided once for the whole batch rather than per claim.
 
 ### BR-H6 The batch renumbers the transaction set and rewrites the reference it planted
 
@@ -1294,10 +1277,9 @@ That is `src/Billing/BillingProcessor/BillingClaimBatch.php:L63-L66`. Both terna
 if ($elems[0] == 'BHT') {
     // needle is set in OpenEMR\Billing\X125010837P
     $this->bat_content .= substr_replace($seg, '*' . "1" . '*', strpos((string) $seg, '*0123*'), 6);
-    $this->bat_content .= "~";
 ```
 
-That is `src/Billing/BillingProcessor/BillingClaimBatch.php:L252-L255`. The rewrite is positional: it locates the literal the generator planted and overwrites six characters with three, so the reference the batch emits is always the single character `1`. The transaction set number itself is renumbered separately at `src/Billing/BillingProcessor/BillingClaimBatch.php:L241-L243`.
+That is `src/Billing/BillingProcessor/BillingClaimBatch.php:L252-L254`, the segment terminator being appended on the line below at `src/Billing/BillingProcessor/BillingClaimBatch.php:L255`. The rewrite is positional: it locates the literal the generator planted and overwrites six characters with three, so the reference the batch emits is always the single character `1`. The transaction set number itself is renumbered separately at `src/Billing/BillingProcessor/BillingClaimBatch.php:L241-L243`.
 
 ### BR-H7 The segment count is copied from the generator into the batch unchanged
 
@@ -1348,12 +1330,11 @@ Six rules. A site global is an administrator-facing setting stored per site. Fiv
 
 ```php
 'force_claim_balancing' => [
-    xl('Force claim balancing in EOB Posting'),
     'bool',                           // data type
     '1',                              // default = true
 ```
 
-That is `library/globals.inc.php:L1297-L1300`. The default is the string `1` on a boolean-typed setting, so the behaviour is active on a site that has never opened the setting.
+That is `library/globals.inc.php:L1297-L1300`, with the display label at `library/globals.inc.php:L1298` omitted from the excerpt. The default is the string `1` on a boolean-typed setting, so the behaviour is active on a site that has never opened the setting.
 
 ### BR-I2 One switch changes the output channel and the submitter identity
 
@@ -1385,12 +1366,9 @@ That is `src/Billing/Claim.php:L656-L658`. With the switch off the accessor retu
 if (OEGlobalsBag::getInstance()->getBoolean('add_unmatched_code_from_ins_co_era_to_billing')) {
     $description = "CPT4:$codekey Added by $inslabel $production_date";
 } else {
-    $error = true;
-    $description = "CPT4:$codekey returned by $inslabel $production_date";
-}
 ```
 
-That is `interface/billing/sl_eob_process.php:L501-L506`. The branches differ in one further respect: only the second sets the error flag, and that flag is what the guard at `interface/billing/sl_eob_process.php:L507` tests before anything is written.
+That is `interface/billing/sl_eob_process.php:L501-L503`. The branches differ in one further respect: only the second, at `interface/billing/sl_eob_process.php:L504-L505`, sets the error flag, and that flag is what the guard at `interface/billing/sl_eob_process.php:L507` tests before anything is written.
 
 ### BR-I4 One switch decides whether anything is transmitted at all
 
@@ -1405,10 +1383,9 @@ That is `interface/billing/sl_eob_process.php:L501-L506`. The branches differ in
 if (
     true === $success &&
     OEGlobalsBag::getInstance()->getBoolean('auto_sftp_claims_to_x12_partner')
-) {
 ```
 
-That is `src/Billing/BillingProcessor/BillingClaimBatch.php:L170-L173`. The switch is read on every batch and gates the queue write that follows it.
+That is `src/Billing/BillingProcessor/BillingClaimBatch.php:L170-L172`. The switch is read on every batch and gates the queue write that follows the guard, and it is the second operand of a conjunction whose first operand requires the local file write to have returned the boolean true.
 
 ### BR-I5 A newly inserted trading partner transmits live claims
 
@@ -1421,9 +1398,10 @@ That is `src/Billing/BillingProcessor/BillingClaimBatch.php:L170-L173`. The swit
 
 ```sql
 `x12_isa15` char(1)     NOT NULL DEFAULT 'P',
+`x12_gs02`  varchar(15) NOT NULL DEFAULT '',
 ```
 
-That is `sql/database.sql:L10039`. The declared default is the production indicator, so a partner row inserted without naming this column transmits live.
+That is `sql/database.sql:L10039-L10040`. The declared default on the first of the two is the production indicator, so a partner row inserted without naming that column transmits live; the empty default on the line below it is the value that the application sender fallback registered as [BR-D7](#br-d7-the-application-sender-code-falls-back-to-the-interchange-sender-identifier) tests for, so the same insert also inherits that fallback.
 
 ### BR-I6 One switch decides whether eligibility can be requested and which payer identifier the request carries
 
@@ -1435,10 +1413,12 @@ That is `sql/database.sql:L10039`. The declared default is the production indica
 - **Blast radius:** Turning the switch on without populating the eligibility identifier on each payer changes the identifier on the wire from a populated column to an empty one, so requests that previously reached a payer stop resolving. VERIFIED: the eligibility path does test for the empty case, accumulating a missing-payer-identifier error at `src/Billing/EDI270.php:L458-L460`, so this failure is reported rather than silent. VERIFIED: the reverse direction has no such test. Turning the switch off silently substitutes the claims identifier, which is populated for every payer the practice bills, so a well-formed 270 is built and transmitted carrying an identifier the eligibility endpoint was never told to expect; nothing on the path compares the two columns or warns that they differ. The two columns and why holding both is hazardous are set out in the payer identity reference in [transactions.md](transactions.md), and the segment the substituted value lands in is documented with the rest of the 270 in the same document.
 
 ```php
+$NM1[8] = "PI";                     // 5010 no longer uses "46"
 $payerId = OEGlobalsBag::getInstance()->getBoolean('enable_eligibility_requests') ? $row['eligibility_id'] : $row['cms_id'];
+$NM1[9] = $payerId; // Application Sender's ID
 ```
 
-That is `src/Billing/EDI270.php:L167`. The switch is the condition of the ternary, so the identifier is chosen per request at build time rather than being stored anywhere.
+That is `src/Billing/EDI270.php:L166-L168`. The switch is the condition of the ternary, so the identifier is chosen per request at build time rather than being stored anywhere, and the line above it fixes the qualifier that tells the payer the following element is a payer identifier.
 
 ## Confidence Summary
 
