@@ -31,6 +31,7 @@ One row per in-scope file answering a single question before you edit it: if I c
     - [library/edihistory/edih_csv_parse.php](#libraryedihistoryedih_csv_parsephp)
     - [library/edihistory/edih_archive.php](#libraryedihistoryedih_archivephp)
     - [library/edihistory/edih_io.php](#libraryedihistoryedih_iophp)
+    - [src/Billing/Claim.php](#srcbillingclaimphp)
     - [src/Billing/X125010837P.php](#srcbillingx125010837pphp)
     - [library/edihistory/edih_835_html.php](#libraryedihistoryedih_835_htmlphp)
     - [library/edihistory/edih_csv_data.php](#libraryedihistoryedih_csv_dataphp)
@@ -41,7 +42,6 @@ One row per in-scope file answering a single question before you edit it: if I c
     - [library/edihistory/edih_997_error.php](#libraryedihistoryedih_997_errorphp)
     - [src/Billing/BillingReport.php](#srcbillingbillingreportphp)
     - [src/Billing/SLEOB.php](#srcbillingsleobphp)
-    - [src/Billing/Claim.php](#srcbillingclaimphp)
     - [src/Billing/BillingProcessor/X12RemoteTracker.php](#srcbillingbillingprocessorx12remotetrackerphp)
 - [Aggregate Views](#aggregate-views)
     - [Risk by generation](#risk-by-generation)
@@ -99,13 +99,17 @@ So the second stage is a breadth test: **a commit that touches 50 or more files 
 
 The threshold is nevertheless a **chosen parameter and not a boundary the data forces**, and saying otherwise would be exactly the kind of unearned confidence this document is meant to avoid. VERIFIED: the breadth distribution across the 321 distinct commits that reach these 67 files is continuous through the range that matters, with commits at 44, 45 and 48 files immediately below the threshold and at 52, 53 and 57 immediately above it. There is no empty gap to hide a boundary in.
 
-What justifies 50 is therefore not a gap but **measured insensitivity**, which is the stronger claim of the two because it can be checked. VERIFIED: recomputing the last-substantive-change column at every threshold from 45 to 57 inclusive produces an identical result for all 67 rows. Outside that band the column does start to move: at a threshold of 40, eleven rows change, because narrow-looking sweeps in the 40-to-49 range begin to be read as behavioural; at 75, six rows change in the opposite direction, as genuine multi-file fixes start being discarded as sweeps. The first row to move at all is `src/Billing/InsurancePolicyTypes.php`, at a threshold of 58, and even that movement is cosmetic: it relabels `8d6dc1cf7`, a 57-file commit, as substantive, and that commit is the one that created the file - which the row already reports as its added date. Any threshold in the low fifties yields the same document.
+What justifies 50 is therefore not a gap but **measured insensitivity**, which is the stronger claim of the two because it can be checked. VERIFIED: recomputing the last-substantive-change column at every threshold from 45 to 57 inclusive produces an identical result for all 67 rows. Outside that band the column does start to move, and it moves in opposite directions on the two sides. At a threshold of 40, twelve rows move **earlier**, because commits touching 40 to 49 files begin to be discarded as sweeps and the classifier falls back to an older behavioural change; six of those twelve are legacy renderers that fall back from 2018 to 2016, and six are small modern files that fall back to `none ever`. At 75, six rows move **later**, because commits touching 50 to 74 files begin to be accepted as behavioural. The first row to move at all is `src/Billing/InsurancePolicyTypes.php`, at a threshold of 58, and even that movement is cosmetic: it relabels `8d6dc1cf7`, a 57-file commit, as substantive, and that commit is the one that created the file - which the row already reports as its added date. Any threshold in the low fifties yields the same document.
 
 INFERRED (confidence: Medium): the continuity of the breadth distribution around 50 reflects a real editorial middle ground rather than a measurement artifact, since a change touching forty to sixty files in this repository can genuinely be either a bounded feature or a partial sweep. Basis: commits at both 44 and 57 files exist in these paths and read as different kinds of work from their subjects alone.
 
 **Stage three, the remainder.** A commit that survives both stages and carries the type `fix`, `feat`, `perf` or `revert` is classified **substantive**. VERIFIED examples from the history of `src/Billing/X125010837P.php`, all narrow and all behavioural: `0d85baa83 fix: edi segment count for ordering provider (#7922)`, which touches exactly one file; `1de5ae614 fix: 837 professional HL count (#6472)`, five files; `8493cde76 fix: x12837 billing 5 or 9 digit zip check (#7760)`, three files; and `3c7dc04fa fix(claims): other payer claim control number for secondary claims (#11150)`, one file. For contrast, the mechanical sweeps that also touch that file are `be636987b refactor: replace $GLOBALS access with OEGlobalsBag across the codebase (#11017)` at 705 files, `c28f4a030 refactor(globals): use getBoolean() for boolean OEGlobalsBag settings (#11050)` at 181, `591b9eda2 refactor(php): Change null to strict string defined function call args` at 814, `ca96b43e0 refactor(php): convert if/else to ternary` at 249 and `545332a95 refactor(php): long array to short array` at 1,222.
 
-**Stage four, commits that predate enforcement.** VERIFIED: 444 of the 983 file-commit pairs reaching these 67 files carry no conventional type at all, against 272 typed `refactor`, 160 `fix`, 69 `chore`, 28 `feat`, 6 `style`, 2 `bug`, 1 `test` and 1 the malformed `fixes`. Those 983 pairs are 321 distinct commits, counted once per in-scope file each one touches, which is why the figure equals the sum of the change-frequency column in the table below rather than a commit count. For an untyped commit that also passed the breadth test, the subject line is matched against a mechanical-intent keyword set - coding-standard and PSR moves, PHP version sweeps, namespace and autoload changes, escaping and sanitising passes, typo and comment passes, linter and static-analyser passes, formatting, short-array and ternary conversions, renames and relocations - and is classified mechanical on a match and substantive otherwise. This stage is the only judgemental part of the classifier, it applies to no commit newer than the enforcement of Conventional Commits, and its effect on the table is visible: it is what makes `library/edihistory/edih_csv_parse.php` report 2016 rather than 2019.
+**Stage four, commits that predate enforcement.** VERIFIED: 444 of the 983 file-commit pairs reaching these 67 files carry no conventional type at all, against 272 typed `refactor`, 160 `fix`, 69 `chore`, 28 `feat`, 6 `style`, 2 `bug`, 1 `test` and 1 the malformed `fixes`. Those 983 pairs are 321 distinct commits, counted once per in-scope file each one touches, which is why the figure equals the sum of the change-frequency column in the table below rather than a commit count. For an untyped commit that also passed the breadth test, the subject line is matched against a mechanical-intent keyword set - coding-standard and PSR moves, PHP version sweeps, namespace and autoload changes, escaping and sanitising passes, typo and comment passes, linter and static-analyser passes, formatting, short-array and ternary conversions, renames and relocations - and is classified mechanical on a match and substantive otherwise. This stage is the only judgemental part of the classifier, and it applies to no commit newer than the enforcement of Conventional Commits.
+
+Its effect is bounded and is published rather than described. VERIFIED: 137 of the 321 distinct commits reaching these 67 files arrive at stage four, that is, they carry no type and pass the breadth test; the keyword set classifies 36 of them mechanical and 101 substantive. VERIFIED: the stage changes the reported date for exactly seven of the 67 rows - `library/edihistory/edih_271_html.php`, `library/edihistory/edih_997_error.php`, `library/edihistory/edih_archive.php`, `library/edihistory/edih_io.php`, `library/edihistory/edih_uploads.php`, `library/edihistory/edih_x12file_class.php` and `src/Billing/HCFAInfo.php`, the last of which becomes `none ever`. The clearest single example is `library/edihistory/edih_271_html.php`: without stage four its newest surviving commit is `e71a3ff9a fixes for edihistory, remove jquery ui residuals, replace php each function removed in php8 (#4613)` of 2021-09-05, which is an untyped commit narrow enough to pass the breadth test but mechanical in substance, and discarding it yields the 2018-09-26 date the table reports.
+
+The stage is **not** what produces the oldest dates in the table, and it would be easy to assume otherwise. `library/edihistory/edih_csv_parse.php` reports 2016 because of stage two, not stage four: every commit to it since then is either typed mechanical or a repository-wide sweep, including `ebe6c2f59 fix(phpdoc): repair legacy parse errors across the codebase (#11904)` at 1,196 files and `83dd873b3 fix: use https in @link header tags (#10869)` at 1,909, both of which carry the substantive type `fix` and are discarded on breadth alone.
 
 The **Last substantive change** column carries the date and short hash of the newest commit to that file that survives all four stages. Seven files carry `none ever` instead, with the date they were added: for each of them, every commit that has ever touched that path is mechanical by this classifier, which is a fact about the file rather than a gap in the data. Four of the seven are the `src/Billing/DaySheet/` classes and one is `src/Billing/EdiHistory/Claim277Renderer.php`, all five of which were created by extraction commits typed `refactor`, so the label is accurate rather than anomalous: those files have genuinely never had their behaviour deliberately changed since the day the code was moved into them.
 
@@ -117,6 +121,17 @@ Matching by name would have produced false confidence in both directions, and bo
 
 The search was therefore run across the entire test tree, all 571 PHP files under `tests/`, rather than across the two billing test directories. Where the column carries `none`, that is the result of a search that returned nothing for that file's fully-qualified class name, for a binding use of its short class name, for a call to any of its global functions and for a require of its path.
 
+The column records **two things rather than one**: whether a covering test exists at all, and how much of the file it reaches. A coverage cell is read as **dedicated** when the test constructs the row's own class as shipped and asserts on its behaviour, and as **narrow** when the test reaches only a fragment - a single static helper, or a stub subclass that bypasses or re-implements the constructor - so that the class as shipped is never executed. Four rows are narrow, each on a marker in the test file itself rather than on an impression, and each is marked `narrow` beside its test path in the master table.
+
+| File | Covering test | The marker that makes it narrow |
+|------|---------------|----------------------------------|
+| `src/Billing/Claim.php` | `Isolated/Billing/ClaimCountMethodsTest.php` | An anonymous subclass whose constructor is overridden to an empty body at `tests/Tests/Isolated/Billing/ClaimCountMethodsTest.php:L42-L46`, so the real constructor - where the claim is assembled from the database - never runs, and only two accessors are asserted |
+| `src/Billing/X125010837I.php` | `Isolated/Billing/X125010837IDateTest.php` | All three test methods drive one static date helper, at `tests/Tests/Isolated/Billing/X125010837IDateTest.php:L22-L38`. Nothing constructs the generator and no segment is emitted or asserted |
+| `src/Billing/BillingProcessor/BillingClaimBatch.php` | `Isolated/Billing/BillingClaimBatchTest.php` | A stub subclass whose constructor sets the batch fields by hand instead of calling the parent, at `tests/Tests/Isolated/Billing/BillingClaimBatchTest.php:L186-L200`. The only batch method the suite ever calls is `append_claim()`, at `tests/Tests/Isolated/Billing/BillingClaimBatchTest.php:L132` |
+| `src/Billing/BillingProcessor/BillingClaim.php` | `Isolated/Billing/BillingClaimTest.php` | A stub subclass whose constructor re-implements the identifier split and the payer-type mapping rather than inheriting them, at `tests/Tests/Isolated/Billing/BillingClaimTest.php:L197-L228`, so the assertions exercise the test's copy of that logic and not the class's |
+
+That distinction is not descriptive only: it feeds the arithmetic below, and it is the reason two of those four rows are not classified `safe`. A binary covered-or-not column would have scored all four as fully covered, and would have reported the 1,225-line institutional generator and the class that writes the batch envelope as `safe` on the strength of a 40-line date test and a stub that never writes a batch file.
+
 ### Signal 3 inbound coupling measured across the whole repository
 
 The coupling column counts the distinct repository files that reference the row's file. VERIFIED: measuring that only inside the documented subsystem would be close to meaningless, because the highest-consequence callers are outside it. Of the 31 files that reference `src/Billing/BillingUtilities.php`, 22 are outside the 67-file documented surface, and 17 of those are screens or a portal page: `interface/billing/sl_eob_process.php`, `interface/billing/ub04_dispose.php`, `interface/forms/fee_sheet/new.php`, `interface/forms/eye_mag/save.php`, eight files under `interface/patient_file/`, three under `interface/reports/`, and `portal/portal_payment.php`. A subsystem-only count would report 9 and would understate the blast radius of that file by more than three times.
@@ -124,6 +139,8 @@ The coupling column counts the distinct repository files that reference the row'
 The count is a binding-reference count rather than a text search for a bare name, because a bare-name search on this repository is unusable. VERIFIED: searching the repository for the short name `LoggerInterface` returns 133 files, almost all of them users of the unrelated PSR-3 logging interface of the same name, and searching for `Controller` returns 384. A file is counted as an inbound reference only when it contains the target's fully-qualified class name, or uses the target's short name in a binding position - `new`, a static call, `extends`, `implements`, `instanceof` or a `use` import - from within the same namespace or a parent or child of it, or calls one of the target's global functions, or requires the target by path. Under that rule the two collisions above resolve to 12 and 18, both of which are genuine.
 
 The corpus excludes `.git`, `vendor`, `node_modules`, the static-analysis temporary directory, `docs/`, and the row's own file. It also excludes `.phpstan/baseline`, and that exclusion is not cosmetic: those 168 files are PHP arrays enumerating suppressed findings by path, so they contain a literal reference to almost every source file in the repository and will match any path-shaped search pattern. Leaving them in inflates a count without adding a single real caller - for `library/edihistory/edih_csv_inc.php` they alone contribute 20 spurious matches.
+
+The rule is applied to **code text only**. Before matching, each candidate file has its comments and its string literals removed - `//` and `#` line comments, `/* */` block comments including docblocks, and single- and double-quoted literals - and the binding-position test is applied to what remains. Without that step the count drifts away from the rule it claims to follow, because a docblock `@param` line, a `@see` tag or a translated screen label reads to a plain search exactly like a binding use. VERIFIED: applying the rule to code text rather than to raw file text lowers eight of the 67 counts and raises none - `library/classes/Controller.class.php` from 18 to 17, `library/classes/InsuranceCompany.class.php` from 15 to 13, `library/edihistory/edih_csv_inc.php` from 14 to 12, `src/Billing/SLEOB.php` from 10 to 9, `library/edihistory/edih_csv_parse.php` from 4 to 2, and `library/edihistory/edih_277_html.php`, `library/edihistory/edih_835_html.php` and `src/Billing/X125010837P.php` from 3 to 2 each. The master table carries the code-text figures. One of those corrections crosses a band boundary in the point table below: `src/Billing/SLEOB.php` at 9 scores one coupling point rather than the two it would score at 10.
 
 Two limits of this count are worth stating so it is not over-read, and the first cuts the opposite way from the direction a reader might assume. Because a reference must appear in a binding position, a file that names the symbol only in a comment is **not** counted, so the figure understates the work of renaming something: `src/Billing/BillingProcessor/BillingLogger.php` and `src/Billing/BillingProcessor/Traits/WritesToBillingLog.php` both describe `LoggerInterface` in prose comments without ever binding to it, and neither appears in its count of 12. And the count is static rather than a call graph, so it cannot see dynamic dispatch, and a class reached only through a variable class name would be undercounted.
 
@@ -134,6 +151,8 @@ The size column is the file's line count, taken with `wc -l` at the recorded com
 Size is discounted to zero for a file whose only declaration is an interface, on the objective marker that it declares an `interface` and no `class`. VERIFIED: four files meet that marker - `src/Billing/BillingProcessor/GeneratorCanValidateInterface.php`, `src/Billing/BillingProcessor/GeneratorInterface.php`, `src/Billing/BillingProcessor/LoggerInterface.php` and `src/Billing/BillingProcessor/ProcessingTaskInterface.php`. They hold no statements, so there is no behaviour in them to break; what a change to them can break is compilation of the classes that implement them, which the coupling signal already measures. Their coverage contribution is discounted for the same reason: an interface has no behaviour for a test to assert.
 
 One row is not PHP at all. `library/edihistory/codes/code_formatter.ods` is an OpenDocument spreadsheet, so it has no line count and contributes none of the 14,979 lines counted for `library/edihistory/`; it is carried as a row because the file is in scope and silence about it would be indistinguishable from having missed it.
+
+Its size cell is therefore not applicable rather than zero, and the point table below is applied to the cells it does have: 0 for size, 3 for a coverage cell of `none`, 0 for a coupling count of 0, 2 for a last substantive change of 2016 and 0 for a single commit, composing to 5 and landing in `caution`. That is the arithmetic applied honestly rather than a claim that a spreadsheet is dangerous to edit. What the score is really reporting is that nothing in this repository would notice if its contents changed, which for a file that generates three PHP code tables is a real statement rather than an artefact.
 
 ### How the four signals compose into a classification
 
@@ -146,7 +165,8 @@ A risk classification is a judgement, not a measurement, so the judgement is pub
 | Size 100 to 299 lines | 1 |
 | Size under 100 lines, or a declaration-only interface | 0 |
 | Coverage cell is `none` | 3 |
-| Coverage cell names a test, or the file is a declaration-only interface | 0 |
+| Coverage cell names a test marked `narrow` | 2 |
+| Coverage cell names a dedicated test, or the file is a declaration-only interface | 0 |
 | Inbound coupling 20 or more | 3 |
 | Inbound coupling 10 to 19 | 2 |
 | Inbound coupling 4 to 9 | 1 |
@@ -162,11 +182,15 @@ A risk classification is a judgement, not a measurement, so the judgement is pub
 | `caution` | 4 to 6 | One or two signals are adverse. A change here needs a specific verification argument |
 | `high-risk` | 7 or above | Large, uncovered and widely referenced at once. A change here can alter behaviour with nothing in the repository able to detect it |
 
-The volatility band deserves one word of explanation, because it points the opposite way from intuition. An old last-substantive-change date scores **more** risk, not less. A file whose behaviour has not been deliberately touched since 2016 is not thereby proven stable; it is a file where nobody currently working on the codebase has demonstrated that they understand it, and where the accumulated mechanical sweeps have rewritten its syntax without anybody re-verifying its output. High change frequency scores an additional point for the complementary reason: a file that has needed 25 or more commits is a file that has repeatedly been found wrong.
+The volatility band deserves one word of explanation, because it points the opposite way from intuition. An old last-substantive-change date scores **more** risk, not less. A file whose behaviour has not been deliberately touched since 2016 is not thereby proven stable; it is a file where nobody currently working on the codebase has demonstrated that they understand it, and where the accumulated mechanical sweeps have rewritten its syntax without anybody re-verifying its output. High change frequency scores an additional point for a complementary reason, and a narrower one than the raw number suggests. VERIFIED: this column counts every commit reaching the file, mechanical and substantive together, as [How to re-run this analysis](#how-to-re-run-this-analysis) states, so a high count is not a count of occasions on which the file was found wrong. What it measures is edit exposure: how often the file has fallen inside somebody's blast radius, whether or not that person was reasoning about what it does. A file edited 45 times, mostly by sweeps, with no test to catch a slip in any of them, has accumulated more opportunity for an unnoticed change than a file edited twice - and that, rather than demonstrated recurrence, is what the point is for. Where a recurrence claim is made about a specific file in the sections below, it is made from the commit subjects and cited, not from this column.
 
-**Escalation rule E.** A file is escalated to `high-risk` regardless of its score when a specific silent-failure or silent-money defect has been traced in it, on the reasoning that a defect which produces no operator-visible signal removes the last line of defence that a low score was relying on. Escalation is never applied on a general impression; it is applied only with the citation that justifies it, and the four escalated rows each name theirs: `src/Billing/BillingProcessor/X12RemoteTracker.php:L112-L121`, `src/Billing/SLEOB.php:L41-L42`, `src/Billing/Claim.php:L289` and `library/edihistory/edih_835_html.php:L531`. Escalated rows are marked as such in the table so that the arithmetic and the override are never confused with each other. The underlying defects are registered, with their symptoms and their proposed verifications, in [defect-candidates.md](defect-candidates.md).
+**Escalation rule E.** A file is escalated to `high-risk` above its arithmetic when **both** of two conditions hold. First, a specific silent-failure or silent-money defect has been traced **in that same file**, cited to a line range in it, on the reasoning that a defect producing no operator-visible signal removes the last line of defence a low score was relying on. Second, the file's composed score is below 7, so that the escalation actually changes the row's band rather than restating it. Both conditions are checkable from the citation and the score, so a reader can confirm or reject any escalation without having to share a judgement.
 
-Applying the arithmetic and the escalation rule to the 67 rows yields **18 high-risk, 31 caution and 18 safe**.
+Exactly two rows satisfy both conditions, and each names its citation. `src/Billing/BillingProcessor/X12RemoteTracker.php`, composed score 4, on `src/Billing/BillingProcessor/X12RemoteTracker.php:L112-L121`, where a failed upload is overwritten with the success status. `src/Billing/SLEOB.php`, composed score 6, on `src/Billing/SLEOB.php:L285-L288`, where the payer level a claim advances to is decided by an unparenthesised mixed condition and nothing is displayed when the advance does not happen. Escalated rows are marked as such in the table so that the arithmetic and the override are never confused with each other. The underlying defects are registered, with their symptoms and their proposed verifications, in [defect-candidates.md](defect-candidates.md).
+
+Two rows that a reader might expect to be escalated are not, and in both cases the reason is one of the two conditions rather than a change of view about the file. `src/Billing/Claim.php` reaches 7 on its own arithmetic once its narrow coverage is scored as narrow, so it fails the second condition and escalation would add nothing to it. `library/edihistory/edih_835_html.php` also reaches 7 on its own arithmetic, and it fails the first condition as well: the defect that makes it interesting is a segment it renders and the modern parser rejects, and the rejecting line is cited in `src/Billing/ParseERA.php` rather than in this file. Both files are high-risk either way; what changes is that the classification is arithmetic in both cases and needs no override to defend.
+
+Applying the arithmetic and the escalation rule to the 67 rows yields **18 high-risk, 34 caution and 15 safe**.
 
 ### Static analysis cleanliness is a separate axis from behavioural safety
 
@@ -191,32 +215,35 @@ Files with nothing notable about them still carry a row, and the sections after 
 |------|------:|-------------------------|--------:|----------------|-----------------:|------|
 | `src/Billing/BillingUtilities.php` | 1996 | 2025-01-01 (`05203599a`) | 25 | `none` | 31 | **high-risk** (score 10) |
 | `library/edihistory/codes/edih_271_code_class.php` | 2432 | 2016-08-13 (`7a3ad84a3`) | 17 | `none` | 8 | **high-risk** (score 9) |
-| `library/edihistory/edih_csv_inc.php` | 1892 | 2026-07-24 (`4573bc83f`) | 45 | `none` | 14 | **high-risk** (score 9) |
-| `library/edihistory/edih_csv_parse.php` | 1599 | 2016-08-13 (`7a3ad84a3`) | 23 | `none` | 4 | **high-risk** (score 9) |
+| `library/edihistory/edih_csv_inc.php` | 1892 | 2026-07-24 (`4573bc83f`) | 45 | `none` | 12 | **high-risk** (score 9) |
+| `library/edihistory/edih_csv_parse.php` | 1599 | 2016-08-13 (`7a3ad84a3`) | 23 | `none` | 2 | **high-risk** (score 8) |
 | `library/edihistory/edih_archive.php` | 1305 | 2018-09-26 (`86f08600c`) | 18 | `none` | 2 | **high-risk** (score 8) |
 | `library/edihistory/edih_io.php` | 753 | 2018-12-22 (`50698f87b`) | 27 | `none` | 1 | **high-risk** (score 8) |
-| `src/Billing/X125010837P.php` | 1640 | 2026-04-08 (`3c7dc04fa`) | 41 | `none` | 3 | **high-risk** (score 7) |
-| `library/edihistory/edih_835_html.php` | 1589 | 2026-07-23 (`bcd189855`) | 30 | `none` | 3 | **high-risk** (score 7, escalated) |
+| `src/Billing/Claim.php` | 2287 | 2026-06-18 (`5826c57e3`) | 53 | `Isolated/Billing/ClaimCountMethodsTest.php`, narrow | 6 | **high-risk** (score 7) |
+| `src/Billing/X125010837P.php` | 1640 | 2026-04-08 (`3c7dc04fa`) | 41 | `none` | 2 | **high-risk** (score 7) |
+| `library/edihistory/edih_835_html.php` | 1589 | 2026-07-23 (`bcd189855`) | 30 | `none` | 2 | **high-risk** (score 7) |
 | `library/edihistory/edih_csv_data.php` | 949 | 2019-05-03 (`77a726d59`) | 24 | `none` | 2 | **high-risk** (score 7) |
 | `library/edihistory/edih_278_html.php` | 916 | 2018-09-26 (`86f08600c`) | 16 | `none` | 2 | **high-risk** (score 7) |
 | `library/edihistory/edih_271_html.php` | 628 | 2018-09-26 (`86f08600c`) | 15 | `none` | 2 | **high-risk** (score 7) |
 | `library/edihistory/edih_uploads.php` | 576 | 2018-09-26 (`86f08600c`) | 22 | `none` | 2 | **high-risk** (score 7) |
 | `library/classes/X12Partner.class.php` | 496 | 2026-04-17 (`0c0f2b68d`) | 27 | `none` | 4 | **high-risk** (score 7) |
-| `library/edihistory/edih_997_error.php` | 335 | 2019-01-19 (`309583b8e`) | 22 | `none` | 2 | **high-risk** (score 7) |
+| `library/edihistory/edih_997_error.php` | 335 | 2018-09-26 (`86f08600c`) | 22 | `none` | 2 | **high-risk** (score 7) |
 | `src/Billing/BillingReport.php` | 308 | 2024-11-15 (`d92b33d11`) | 24 | `none` | 7 | **high-risk** (score 7) |
-| `src/Billing/SLEOB.php` | 304 | 2026-02-09 (`4ca569023`) | 19 | `none` | 10 | **high-risk** (score 7, escalated) |
-| `src/Billing/Claim.php` | 2287 | 2026-06-18 (`5826c57e3`) | 53 | `Isolated/Billing/ClaimCountMethodsTest.php` | 6 | **high-risk** (score 5, escalated) |
+| `src/Billing/SLEOB.php` | 304 | 2026-02-09 (`4ca569023`) | 19 | `none` | 9 | **high-risk** (score 6, escalated) |
 | `src/Billing/BillingProcessor/X12RemoteTracker.php` | 216 | 2025-08-23 (`fe597b9b8`) | 11 | `none` | 3 | **high-risk** (score 4, escalated) |
 | `library/edihistory/edih_segments.php` | 1238 | 2025-09-28 (`7209da131`) | 24 | `none` | 2 | caution (score 6) |
 | `src/Billing/EDI270.php` | 1162 | 2024-10-24 (`13d175253`) | 30 | `Isolated/Billing/EDI270Test.php` | 4 | caution (score 6) |
 | `src/Billing/Hcfa1500.php` | 762 | 2023-05-25 (`82e9f11a7`) | 12 | `none` | 3 | caution (score 6) |
 | `src/Billing/BillingProcessor/Tasks/GeneratorX12Direct.php` | 370 | 2023-10-04 (`02475cb7e`) | 22 | `none` | 1 | caution (score 6) |
+| `src/Billing/BillingProcessor/BillingClaim.php` | 239 | 2023-06-15 (`40636e7d9`) | 12 | `Isolated/Billing/BillingClaimTest.php`, narrow | 15 | caution (score 6) |
 | `library/edihistory/codes/edih_997_codes.php` | 175 | 2016-05-26 (`4854c13d0`) | 11 | `none` | 2 | caution (score 6) |
 | `src/Billing/BillingProcessor/Traits/WritesToBillingLog.php` | 43 | 2021-01-29 (`e3fa29dc6`) | 2 | `none` | 10 | caution (score 6) |
 | `library/edihistory/edih_x12file_class.php` | 21 | 2018-09-26 (`86f08600c`) | 28 | `none` | 1 | caution (score 6) |
-| `library/classes/InsuranceCompany.class.php` | 416 | 2026-06-21 (`bfcb2eff1`) | 44 | `Services/InsuranceCompanyServiceTest.php` | 15 | caution (score 5) |
-| `library/classes/Controller.class.php` | 316 | 2026-07-15 (`7f8b94865`) | 55 | `RestControllers/ControllerRoutingTest.php` | 18 | caution (score 5) |
-| `library/edihistory/edih_277_html.php` | 307 | 2026-07-23 (`f451a0933`) | 19 | `none` | 3 | caution (score 5) |
+| `src/Billing/X125010837I.php` | 1225 | 2025-09-28 (`1a78ec8f1`) | 13 | `Isolated/Billing/X125010837IDateTest.php`, narrow | 2 | caution (score 5) |
+| `library/classes/InsuranceCompany.class.php` | 416 | 2026-06-21 (`bfcb2eff1`) | 44 | `Services/InsuranceCompanyServiceTest.php` | 13 | caution (score 5) |
+| `library/classes/Controller.class.php` | 316 | 2026-07-15 (`7f8b94865`) | 55 | `RestControllers/ControllerRoutingTest.php` | 17 | caution (score 5) |
+| `library/edihistory/edih_277_html.php` | 307 | 2026-07-23 (`f451a0933`) | 19 | `none` | 2 | caution (score 5) |
+| `src/Billing/BillingProcessor/BillingClaimBatch.php` | 280 | 2024-04-30 (`14e7854b0`) | 12 | `Isolated/Billing/BillingClaimBatchTest.php`, narrow | 8 | caution (score 5) |
 | `library/edihistory/codes/edih_835_code_class.php` | 264 | 2022-04-02 (`564935ccd`) | 19 | `none` | 2 | caution (score 5) |
 | `src/Billing/BillingProcessor/Tasks/GeneratorHCFA_PDF.php` | 234 | 2023-06-15 (`40636e7d9`) | 13 | `none` | 2 | caution (score 5) |
 | `src/PaymentProcessing/Recorder.php` | 228 | 2026-02-03 (`da996a38f`) | 5 | `none` | 9 | caution (score 5) |
@@ -224,7 +251,7 @@ Files with nothing notable about them still carry a row, and the sections after 
 | `src/Billing/BillingProcessor/Tasks/GeneratorX12.php` | 219 | 2023-10-04 (`02475cb7e`) | 18 | `none` | 1 | caution (score 5) |
 | `src/Billing/BillingProcessor/Tasks/GeneratorUB04X12.php` | 160 | 2024-04-30 (`14e7854b0`) | 9 | `none` | 1 | caution (score 5) |
 | `src/Billing/BillingProcessor/Tasks/AbstractGenerator.php` | 115 | 2026-02-06 (`5da24e5f4`) | 13 | `none` | 8 | caution (score 5) |
-| `src/Billing/BillingProcessor/BillingClaim.php` | 239 | 2023-06-15 (`40636e7d9`) | 12 | `Isolated/Billing/BillingClaimTest.php` | 15 | caution (score 4) |
+| `library/edihistory/codes/code_formatter.ods` | n/a | 2016-05-26 (`4854c13d0`) | 1 | `none` | 0 | caution (score 5) |
 | `src/Billing/BillingProcessor/Tasks/GeneratorHCFA.php` | 179 | 2025-06-20 (`43d1cf412`) | 7 | `none` | 1 | caution (score 4) |
 | `src/Billing/PaymentGateway.php` | 152 | 2025-06-20 (`43d1cf412`) | 13 | `none` | 2 | caution (score 4) |
 | `src/Billing/BillingProcessor/Tasks/GeneratorUB04Form_PDF.php` | 88 | 2024-04-30 (`14e7854b0`) | 5 | `none` | 1 | caution (score 4) |
@@ -239,10 +266,8 @@ Files with nothing notable about them still carry a row, and the sections after 
 | `src/Billing/BillingProcessor/Tasks/TaskMarkAsClear.php` | 39 | 2021-04-23 (`f8790fbfa`) | 4 | `none` | 1 | caution (score 4) |
 | `src/Billing/DaySheet/DaySheetTotals.php` | 29 | none ever (added 2026-04-27) | 1 | `none` | 2 | caution (score 4) |
 | `src/Billing/EdiHistory/X12File.php` | 1566 | 2026-07-14 (`1c0d77361`) | 6 | `Isolated/Billing/EdiHistory/X12FileIsolatedTest.php` | 3 | safe (score 3) |
-| `src/Billing/X125010837I.php` | 1225 | 2025-09-28 (`1a78ec8f1`) | 13 | `Isolated/Billing/X125010837IDateTest.php` | 2 | safe (score 3) |
 | `src/Billing/ParseERA.php` | 561 | 2026-05-20 (`e392a30ba`) | 17 | `Isolated/Billing/ParseERATest.php` | 4 | safe (score 3) |
 | `src/Billing/EdiHistory/Claim277Renderer.php` | 373 | none ever (added 2026-07-24) | 1 | `Isolated/Billing/EdiHistory/Claim277RendererTest.php` | 2 | safe (score 3) |
-| `src/Billing/BillingProcessor/BillingClaimBatch.php` | 280 | 2024-04-30 (`14e7854b0`) | 12 | `Isolated/Billing/BillingClaimBatchTest.php` | 8 | safe (score 3) |
 | `src/Billing/InvoiceSummary.php` | 255 | 2023-10-22 (`f8a69b7e2`) | 19 | `Services/Billing/InvoiceSummaryTest.php` | 7 | safe (score 3) |
 | `src/Billing/BillingProcessor/LoggerInterface.php` | 26 | 2021-01-29 (`e3fa29dc6`) | 2 | `none` | 12 | safe (score 3) |
 | `src/Billing/BillingProcessor/GeneratorInterface.php` | 25 | 2021-01-29 (`e3fa29dc6`) | 2 | `none` | 10 | safe (score 3) |
@@ -253,13 +278,13 @@ Files with nothing notable about them still carry a row, and the sections after 
 | `src/Billing/DaySheet/BillRow.php` | 74 | none ever (added 2026-04-27) | 1 | `Isolated/Billing/DaySheet/BillRowTest.php` | 3 | safe (score 1) |
 | `src/Billing/DaySheet/DaySheetAggregator.php` | 54 | none ever (added 2026-04-27) | 1 | `Isolated/Billing/DaySheet/DaySheetAggregatorTest.php` | 2 | safe (score 1) |
 | `src/Billing/BillingProcessor/ProcessingTaskInterface.php` | 22 | 2021-01-29 (`e3fa29dc6`) | 2 | `none` | 3 | safe (score 1) |
-| `library/edihistory/codes/code_formatter.ods` | n/a | 2016-05-26 (`4854c13d0`) | 1 | `none` | 0 | safe (score 0) |
 | `src/Billing/EdiHistory/EdiFormat.php` | 83 | 2026-07-24 (`4573bc83f`) | 2 | `Isolated/Billing/EdiHistory/EdiFormatTest.php` | 3 | safe (score 0) |
 | `src/Billing/EdiHistory/RemitAccounting.php` | 32 | 2026-07-23 (`bcd189855`) | 1 | `Isolated/Billing/EdiHistory/RemitAccountingTest.php` | 2 | safe (score 0) |
 
+
 ## The Test Surface Behind the Coverage Column
 
-Coverage in this subsystem is real, and it is distributed almost exactly inversely to risk. The four smallest, newest, strict-typed classes are the only part of the subsystem with a safety net, and the largest and most consequential files have nothing at all. This section publishes the whole evidence base for the coverage column so that a reader can audit any cell in the table.
+Coverage in this subsystem is real, and it is distributed almost exactly inversely to risk. The four smallest, newest, strict-typed classes are the only fully covered group in the subsystem, and the largest and most consequential files have nothing at all. This section publishes the whole evidence base for the coverage column so that a reader can audit any cell in the table.
 
 ### The sixteen billing test files
 
@@ -348,7 +373,7 @@ Each of the following was established by a search that returned nothing, not by 
 - The paper-claim and gateway files `src/Billing/Hcfa1500.php`, `src/Billing/HCFAInfo.php`, `src/Billing/PaymentGateway.php`, `src/Billing/BillingReport.php` and `src/Billing/InsurancePolicyTypes.php`.
 - `src/Billing/DaySheet/DaySheetTotals.php` and `src/Billing/DaySheet/SlotTotals.php`, the two uncovered members of an otherwise covered directory.
 - The trading-partner model `library/classes/X12Partner.class.php`.
-- The accounts-receivable contract `src/PaymentProcessing/Recorder.php`, which is the destination named by the deprecation notice at `src/Billing/SLEOB.php:L221`. The target of the in-progress extraction is itself untested, which the roadmap has to plan around rather than assume away.
+- The concrete accounts-receivable recorder `src/PaymentProcessing/Recorder.php`. VERIFIED: it is a class and not an interface - `class Recorder` is declared at `src/PaymentProcessing/Recorder.php:L22` under `declare(strict_types=1)` at `:L11`, and it carries three public methods at `:L43`, `:L70` and `:L143` plus two private helpers at `:L207` and `:L222`. It is the destination named by the deprecation notice at `src/Billing/SLEOB.php:L221`. The target of the in-progress extraction is itself untested, which the roadmap has to plan around rather than assume away.
 - The four declaration-only interfaces in `src/Billing/BillingProcessor/`. They have no behaviour to assert, which is why the composition rule discounts their coverage rather than penalising it.
 - **All 14,979 PHP lines of `library/edihistory/`**, across all 16 of its PHP files, plus the non-PHP `library/edihistory/codes/code_formatter.ods`.
 
@@ -362,9 +387,9 @@ One subsection per high-risk row, in table order. Each names the specific lines 
 
 1,996 lines, coverage `none`, inbound coupling 31, 25 commits, last substantive change 2025-01-01 (`05203599a`). The highest composed score in the subsystem, at 10 of a possible 12.
 
-This file is the claim write path, and every hazard in it is a hazard to a database row that money is later computed from. VERIFIED: it inserts the charge row into the `billing` queue at `src/Billing/BillingUtilities.php:L1467`. VERIFIED: it allocates the claim version by reading the current maximum and adding one, at `src/Billing/BillingUtilities.php:L1679`, then writes two `claims` rows at `src/Billing/BillingUtilities.php:L1688` and `src/Billing/BillingUtilities.php:L1698`, then advances the encounter's billed-level watermark at `src/Billing/BillingUtilities.php:L1722` behind a guard at `:L1720-L1721`. VERIFIED: the first of those two `claims` writes assembles part of its own statement text at runtime, a `SET` fragment built in code before the statement is issued, and the comment immediately above it at `src/Billing/BillingUtilities.php:L1686` says as much. A statement whose column list is assembled at runtime cannot be checked statically for which columns it actually writes, so a refactor of this region cannot be verified by reading it.
+This file is the claim write path, and every hazard in it is a hazard to a database row that money is later computed from. VERIFIED: it inserts the charge row into the `billing` queue at `src/Billing/BillingUtilities.php:L1467`. VERIFIED: it allocates the claim version by reading the current maximum and adding one, at `src/Billing/BillingUtilities.php:L1679`, then writes exactly one `claims` row, then advances the encounter's billed-level watermark at `src/Billing/BillingUtilities.php:L1722` behind a guard at `:L1720-L1721`. VERIFIED: the single row is written through one of two mutually exclusive statement variants selected by the crossover test at `src/Billing/BillingUtilities.php:L1685`. The two `INSERT INTO claims` texts at `src/Billing/BillingUtilities.php:L1688` and `src/Billing/BillingUtilities.php:L1698` are the two arms of that `if`/`else`, they assign to the same `$sql` variable, and control converges on the one `sqlStatement()` call at `src/Billing/BillingUtilities.php:L1707`. VERIFIED: the two arms do not write the same columns. The non-crossover arm interpolates a `SET` fragment assembled in code, which the comment immediately above it at `src/Billing/BillingUtilities.php:L1686` identifies as a dynamic fragment, and binds that fragment's parameters at `:L1694`; the crossover arm at `:L1697` uses a fixed statement that writes only the status and the version, at `:L1701-L1702`, and so discards the assembled fragment entirely. A statement whose column list is assembled at runtime cannot be checked statically for which columns it actually writes, and a reader of this region cannot tell from the insert texts alone which of the two ran, so a refactor of it cannot be verified by reading it.
 
-VERIFIED: this region is at least wrapped in a transaction - `src/Billing/BillingUtilities.php:L1677` opens a `QueryUtils::inTransaction` closure around the version allocation and the two inserts - which means an interrupted write does not leave a half-written claim. That is a mitigation of one failure mode and not of the one that matters here: a transaction guarantees the writes happen together, not that they write the right values.
+VERIFIED: this region is at least partly wrapped in a transaction - `src/Billing/BillingUtilities.php:L1677` opens a `QueryUtils::inTransaction` closure around the version allocation and the insert, and closes it at `:L1708` - so the read-then-insert that allocates the version cannot interleave with another allocation. VERIFIED: the encounter watermark update at `src/Billing/BillingUtilities.php:L1722` is outside that closure, so the claim row and the watermark that records it having been billed are not written atomically. Either way the transaction is a mitigation of one failure mode and not of the one that matters here: it constrains when the write happens, not which values it writes.
 
 The coupling figure is what turns a large uncovered file into a high-risk one. VERIFIED: of the 31 files that reference it, 22 are outside the 67-file documented surface, and 17 of those are user-facing entry points - `interface/billing/sl_eob_process.php`, `interface/billing/ub04_dispose.php`, `interface/forms/fee_sheet/new.php`, `interface/forms/eye_mag/save.php`, eight files under `interface/patient_file/`, three under `interface/reports/`, and `portal/portal_payment.php`. A behavioural change here surfaces on seventeen screens that no test touches.
 
@@ -380,17 +405,21 @@ The date column is the strongest single illustration of why the classifier in th
 
 ### library/edihistory/edih_csv_inc.php
 
-1,892 lines, coverage `none`, inbound coupling 14, **45 commits - the highest churn of any file in the legacy tree**, last substantive change 2026-07-24 (`4573bc83f`).
+1,892 lines, coverage `none`, inbound coupling 12, **45 commits - the highest churn of any file in the legacy tree**, last substantive change 2026-07-24 (`4573bc83f`).
 
 VERIFIED: this file owns the storage-path contract that the whole EDI History subsystem depends on. `library/edihistory/edih_csv_inc.php:L332` tests for the site directory global and `:L335` returns the composed history path; when the global is absent, `:L337-L338` logs and returns false rather than raising. Every file the subsystem writes, indexes, archives or reads back is located relative to the value returned at `:L335`, so a change to that single expression relocates the entire on-disk estate, and the failure mode when it returns false is a logged message rather than an exception.
 
-Its risk is compounded by being simultaneously the most-changed legacy file and one of the most-referenced: 14 files reference it, including the operator-facing entry point `interface/billing/edih_main.php`. A file that has needed 45 commits is a file whose behaviour has repeatedly been found wrong, and there is no test to catch the forty-sixth.
+Its risk is compounded by being simultaneously the most-edited legacy file and one of the most-referenced: 12 files reference it, including the operator-facing entry point `interface/billing/edih_main.php`. VERIFIED: the 45 is edit exposure and not a defect count - 8 of those 45 commits survive the classifier as substantive and 37 do not. Reading the eight is what the column cannot do for you. One is the subsystem's original import, `4854c13d0` of 2016-05-26. Two are 2026 commits typed `fix` that adjust a formatting helper and move a `use` statement out of a docblock, `4573bc83f` and `316002f58`, and are retained only because stage three accepts a declared type without inspecting the subject. The five in between are genuine corrections: `7a3ad84a3` of 2016-08-13 for file-type and newline errors in the scan, `b8963a5ca` of 2017-06-28 described only as a security fix, `86f08600c` of 2018-09-26, the writable-directory relocation `5b0515185` of 2019-03-09, and `77a726d59` of 2019-05-03 for warnings. So this file has been behaviourally corrected five times, the last of them in 2019, and there is no test that would catch the sixth.
 
 ### library/edihistory/edih_csv_parse.php
 
-1,599 lines, coverage `none`, inbound coupling 4, 23 commits, last substantive change 2016-08-13 (`7a3ad84a3`).
+1,599 lines, coverage `none`, inbound coupling 2, 23 commits, last substantive change 2016-08-13 (`7a3ad84a3`). Composed score 8.
 
-VERIFIED: 1,599 lines are divided among only 9 functions, which begin at `library/edihistory/edih_csv_parse.php:L43`, `:L83`, `:L245` and `:L412`. Functions of that size cannot be changed in a locally reasoned way: a variable set near the top of one of them is still live hundreds of lines later, which is the structural precondition for state leaking between iterations of a loop.
+VERIFIED: this file is the write side of the history index, and its risk is what it owns rather than how large it is. Six of its nine functions are per-transaction-type index builders - the remittance builder at `library/edihistory/edih_csv_parse.php:L83`, the claim builder at `:L245`, the claim-status builder at `:L412`, the authorisation builder at `:L724`, the acknowledgement builder at `:L1023` and the eligibility builder at `:L1251` - dispatched by type at `:L1562`. Every row the operator interface can list, search or link to for every tracked transaction type originates in one of those six functions, and the row layout they produce is declared nowhere: there is no header constant, no schema and no validation of it anywhere in the subsystem.
+
+VERIFIED: the builders accumulate into a deeply nested array across several enclosing loops rather than returning a value per iteration. In the claim-status builder, an element is written to `$ret_ar[$icn]['claim'][$cdx]['SvcDate']` at `library/edihistory/edih_csv_parse.php:L705` and the array is returned at `:L715`, with five loops closing between those two lines at `:L709-L713`; the interchange-control-number key `$icn` is bound by the outermost of them and the claim index `$cdx` by an inner one, so both are live for hundreds of lines. A mis-set index in that shape does not fail, it writes into another claim's row - which is the concrete form the leaking-state hazard takes here, and the reason a change in one of these functions cannot be reasoned about locally.
+
+VERIFIED: its behavioural history is two commits. Of 23 commits reaching this file, only `4854c13d0` of 2016-05-26, the subsystem's original import, and `7a3ad84a3` of 2016-08-13 survive the classifier as substantive; the other 21 never intended to change what it does. The single corrective commit in the file's entire history fixed file-type handling and newline handling in the x12 file scan - the two assumptions a rewrite of a parser is most likely to re-break - and nothing has re-verified them in the decade since.
 
 VERIFIED: this is the misleading-date exemplar named in [Why the raw commit history is not a usable age signal](#why-the-raw-commit-history-is-not-a-usable-age-signal). Its last commit is dated 2026-07-23 and its last behavioural change is dated 2016-08-13. Anyone triaging this subsystem by modification date would place it among the best-maintained files in the tree; it is among the least.
 
@@ -412,9 +441,17 @@ VERIFIED: **this file contains the only database statement in all 14,979 PHP lin
 
 That one statement is why the file is high-risk out of proportion to its coupling count of 1: it is the sole seam between a filesystem subsystem and the accounts-receivable ledger, and both the escaping and the comparison on the two lines after it are registered in [defect-candidates.md](defect-candidates.md).
 
+### src/Billing/Claim.php
+
+2,287 lines, coverage `tests/Tests/Isolated/Billing/ClaimCountMethodsTest.php` marked `narrow`, inbound coupling 6, **53 commits - the highest of any file in `src/Billing/`**, last substantive change 2026-06-18 (`5826c57e3`). Composed score 7, of which 2 points are the narrow-coverage tier, so this row reaches the high-risk band on its own arithmetic and needs no escalation.
+
+This is the only high-risk row whose coverage cell names a test, and the reason it is still high-risk is the gap between what the cell says and what the test does. VERIFIED: the covering test drives two accessor methods through an anonymous subclass whose constructor is overridden to a no-op at `tests/Tests/Isolated/Billing/ClaimCountMethodsTest.php:L42-L46`. The real constructor, which is where this class assembles the claim from the database, is never executed by any test. A coverage cell reading as covered, over a 2,287-line class of which two accessors are exercised, is the single most misleading cell in the master table, and it is called out here so that nobody treats it as a safety net.
+
+VERIFIED: a second hazard in this file, independent of the coverage gap, is an invisible cross-generation dependency. `src/Billing/Claim.php:L288` reads the payer row and `src/Billing/Claim.php:L289` constructs `InsuranceCompany`, a root-namespace legacy class, with no import declaring it - the imports at `src/Billing/Claim.php:L20-L25` are all within the modern namespace. The class is resolvable only because the autoload configuration maps the legacy class directory, as [architecture.md](architecture.md) records. The consequence for a refactor is that reading this file's header gives no indication that it depends on generation-1 code at all, so the dependency is invisible to exactly the inspection a developer performs first.
+
 ### src/Billing/X125010837P.php
 
-1,640 lines, coverage `none`, inbound coupling 3, **41 commits**, last substantive change 2026-04-08 (`3c7dc04fa`). This file generates every 837P professional claim the system transmits.
+1,640 lines, coverage `none`, inbound coupling 2, **41 commits**, last substantive change 2026-04-08 (`3c7dc04fa`). This file generates every 837P professional claim the system transmits.
 
 Its classification does not rest on the observation that it is large and uncovered. It rests on **demonstrated recurrence**: this file has already been found wrong, in precisely the class of defect that a refactor of a claim generator is most likely to reintroduce, and it has been found wrong more than once.
 
@@ -424,17 +461,21 @@ VERIFIED: two specific regions make a change here hazardous. `src/Billing/X12501
 
 ### library/edihistory/edih_835_html.php
 
-1,589 lines, coverage `none`, inbound coupling 3, 30 commits, last substantive change 2026-07-23 (`bcd189855`). Composed score 7, and **escalated** under rule E.
+1,589 lines, coverage `none`, inbound coupling 2, 30 commits, last substantive change 2026-07-23 (`bcd189855`). Composed score 7, which reaches the high-risk band on the arithmetic alone.
 
 VERIFIED: this legacy renderer recognises a segment that the modern remittance parser refuses. `library/edihistory/edih_835_html.php:L531` matches the `MIA` segment - Medicare inpatient adjudication information - and renders it. The modern parser reaches the opposite conclusion for the same input: `src/Billing/ParseERA.php:L467-L468` returns an unknown-segment error for any segment identifier outside its whitelist, after the mismatch test at `src/Billing/ParseERA.php:L464-L465`.
 
-The escalation follows from the operator-visible consequence rather than from the file's size. An 835 remittance carrying that segment displays correctly in the EDI History browser and cannot be posted to accounts receivable, and the two facts are produced by two different components, so an operator sees a remittance that is evidently readable and evidently will not post. A generation-1 file is more capable than its generation-2 replacement in this one respect, which inverts the assumption a refactor would naturally make - that deleting the older renderer loses nothing. It loses this. The capability gap is registered as a rule in [business-rules.md](business-rules.md) and as a defect in [defect-candidates.md](defect-candidates.md).
+The classification is carried by size and by absent coverage, so it needs no override; escalation rule E does not apply here, because the line that produces the mismatch is cited in `src/Billing/ParseERA.php` rather than in this file. What this subsection adds beyond the arithmetic is the operator-visible consequence. An 835 remittance carrying that segment displays correctly in the EDI History browser and cannot be posted to accounts receivable, and the two facts are produced by two different components, so an operator sees a remittance that is evidently readable and evidently will not post. A generation-1 file is more capable than its generation-2 replacement in this one respect, which inverts the assumption a refactor would naturally make - that deleting the older renderer loses nothing. It loses this. The capability gap is registered as a rule in [business-rules.md](business-rules.md) and as a defect in [defect-candidates.md](defect-candidates.md).
 
 ### library/edihistory/edih_csv_data.php
 
 949 lines, coverage `none`, inbound coupling 2, 24 commits, last substantive change 2019-05-03 (`77a726d59`).
 
-VERIFIED: 949 lines across only 4 functions, at `library/edihistory/edih_csv_data.php:L47`, `:L213`, `:L291` and `:L464`. An average of 237 lines per function is the structural risk here: there is no unit of this file small enough to reason about in isolation, and no test to substitute for that reasoning. It sits in the comma-separated-value index layer alongside `edih_csv_inc.php` and `edih_csv_parse.php`, so the three of them share responsibility for the filesystem index that the operator interface reads, and all three carry `none`.
+VERIFIED: this file is the read side of the same index, and each of its four functions renders one operator-facing screen: the processing result at `library/edihistory/edih_csv_data.php:L47`, the denied-claims list at `:L213`, the per-encounter claim history at `:L291` and the index table itself at `:L464`. Three of the four are reached directly from the input and output router - the denied-claims list from `library/edihistory/edih_io.php:L308`, the index table from `:L702` and the claim history from `:L713` - so a fault in any of them is a fault the operator sees rather than one a log records.
+
+VERIFIED: it reads index rows by numeric offset, and that positional agreement is the real hazard. At `library/edihistory/edih_csv_data.php:L245-L251` it takes the filename from offset 5, the patient identifier from offset 2, the transaction control number from offset 4, the response type from offset 6 and the error flag from offset 7, and turns them straight into the query parameters of the links it emits; it prints offset 0 as the first visible cell at `:L260`. Nothing declares that column order on either side of the contract. The offsets here have to match whatever the six builders in `edih_csv_parse.php` wrote, and no constant, comment or test states what that is. VERIFIED: the failure mode of a drifted offset is not an error. A link is emitted with a value from the wrong column, so the operator is shown the wrong file or the wrong transaction, or a not-found, with nothing to indicate that the index rather than the request was at fault.
+
+VERIFIED: 4 of its 24 commits survive the classifier as substantive, the last being `77a726d59` of 2019-05-03. It sits in the comma-separated-value index layer alongside `edih_csv_inc.php` and `edih_csv_parse.php`; the three of them hold the write side, the read side and the storage paths of one undeclared data contract, and all three carry `none`.
 
 ### library/edihistory/edih_278_html.php
 
@@ -442,13 +483,15 @@ VERIFIED: 949 lines across only 4 functions, at `library/edihistory/edih_csv_dat
 
 VERIFIED: 916 lines in **two functions**, at `library/edihistory/edih_278_html.php:L39` and `:L855`. The first is over eight hundred lines long. That is the highest lines-per-function ratio in the subsystem, and it is the reason this file scores as it does despite modest coupling.
 
-VERIFIED: it is also the only place in the repository that understands a 278 services-review transaction at all. The 278 is handled asymmetrically - parsed and displayed, never generated - as established in [transactions.md](transactions.md). There is consequently no second implementation to compare against and no round-trip to check a change with: whatever this file does with a 278 is the definition of what the system does with a 278.
+VERIFIED: it is also the only implementation of 278 segment semantics in the repository. Other components identify the transaction type without interpreting it: the functional-group dispatch table maps the `HI` group code to the 278 at `src/Billing/EdiHistory/X12File.php:L102`, the index layer builds its own 278 rows at `library/edihistory/edih_csv_parse.php:L724`, the display router selects this renderer for the type at `library/edihistory/edih_io.php:L442`, and the generic segment display will list a 278's segments without knowing what any of them mean. Element-level meaning exists only here. The 278 is handled asymmetrically - parsed and displayed, never generated - as established in [transactions.md](transactions.md). There is consequently no second interpretation to compare against and no round-trip to check a change with: whatever this file does with a 278 is the definition of what the system understands a 278 to say.
 
 ### library/edihistory/edih_271_html.php
 
 628 lines, coverage `none`, inbound coupling 2, 15 commits, last substantive change 2018-09-26 (`86f08600c`).
 
-VERIFIED: 628 lines in two functions, at `library/edihistory/edih_271_html.php:L43` and `:L568`. VERIFIED: this renderer serves two transaction types rather than one, because the 270 eligibility inquiry has no renderer of its own and shares this one, as recorded in [transactions.md](transactions.md). A change made while thinking about eligibility responses therefore also changes how eligibility requests are displayed, and the file's name gives no hint of the second responsibility.
+VERIFIED: 628 lines in two functions, at `library/edihistory/edih_271_html.php:L43` and `:L568`. VERIFIED: this renderer serves one transaction type, the 271 eligibility response. Its file-level entry point hardcodes that file type when it loads a parsed file, at `library/edihistory/edih_271_html.php:L574`. The 270 eligibility inquiry has no renderer of its own and is not served by this one; it falls to the raw segment display, as both [architecture.md](architecture.md) and [transactions.md](transactions.md) record.
+
+VERIFIED: the risk here is that the two routers which reach this file disagree about that. The per-transaction router `edih_disp_x12trans()` names this renderer for the 271 only, at `library/edihistory/edih_io.php:L440`, and lets a 270 fall through to `edih_display_text()` at `library/edihistory/edih_io.php:L443-L445` under a comment saying HTML display is not available. The whole-file router `edih_disp_x12file()` calls it for either type, at `library/edihistory/edih_io.php:L628-L629`. VERIFIED: what a 270 arriving by the second route actually gets is decided outside this file, by the path helper `csv_check_filepath()` at `library/edihistory/edih_csv_inc.php:L620`, which returns an already-readable path unchanged at `:L624-L626` before it consults the type at all, and only uses the type to resolve a bare filename inside that type's directory at `:L633-L637`. So a bare 270 filename fails the lookup and the renderer returns the parse-error string at `library/edihistory/edih_271_html.php:L618`, while a full path to a readable 270 loads and is interpreted with 271 element semantics. Neither outcome is a rendered 270, and the two are reached by the same call. A refactor of this file has to preserve or deliberately resolve that inconsistency rather than assume a shared responsibility that the code does not implement.
 
 ### library/edihistory/edih_uploads.php
 
@@ -462,13 +505,15 @@ VERIFIED: 576 lines across 6 functions, at `library/edihistory/edih_uploads.php:
 
 VERIFIED: `library/classes/X12Partner.class.php:L17` declares the class as an extension of the legacy data-object base, and `:L24-L40` documents the meaning of individual `ISA` interchange-header and `GS` functional-group-header element positions as inline comments on the properties that carry them. That is the only place in the repository where those element positions are explained, and per the source-of-truth ordering in [README.md](README.md) those comments are evidence of intent rather than of behaviour - so a refactor has to re-derive from the generators what the comments assert.
 
-VERIFIED: `library/classes/X12Partner.class.php:L69-L70` hardcodes the interchange identification qualifiers rather than deriving them from configuration, so a partner requiring different qualifiers cannot be configured without editing this file. VERIFIED: 496 lines hold 74 methods, which is a very high method count for the size and indicates an accessor-per-column shape rather than behaviour.
+VERIFIED: `library/classes/X12Partner.class.php:L69-L70` assigns the mutually-defined value to both interchange identification qualifiers, the sender qualifier `ISA05` and the receiver qualifier `ISA07`. Those two assignments are constructor defaults for a new, unpopulated object, not a hardcoded override: they run before the constructor's own load step at `:L72-L74`, which calls `populate()` only when an identifier was supplied, so for any partner loaded by identifier the stored row wins. VERIFIED: both qualifiers are persisted per partner - `x12_isa05` at `sql/database.sql:L10036` and `x12_isa07` at `sql/database.sql:L10037`, each `char(2)` defaulting to the same mutually-defined value - and the class exposes live accessors for them at `:L287-L294` and `:L297-L304`. VERIFIED: the outbound paths read the loaded values rather than the defaults. `src/Billing/Claim.php:L674-L676` and `:L698-L700` return the two qualifiers from the partner row, and the two claim generators emit them at `src/Billing/X125010837P.php:L65` and `:L67` and at `src/Billing/X125010837I.php:L49` and `:L51`; the eligibility path reads the same two columns directly at `src/Billing/EDI270.php:L62` and `:L64`. A partner requiring different qualifiers is therefore configured by changing its row, and the risk in this file is not that the values are fixed. VERIFIED: 496 lines hold 74 methods, which is a very high method count for the size and indicates an accessor-per-column shape rather than behaviour.
 
 Two facts make it more hazardous than its coupling count of 4 suggests. It is one of three parallel trading-partner loading implementations in the subsystem, as [architecture.md](architecture.md) records, so a change here fixes or breaks only one third of partner loading. And its coverage cell is a genuine `none` rather than an unexamined one: the test tree mentions the trading-partner concept only through a method name belonging to another class.
 
 ### library/edihistory/edih_997_error.php
 
-335 lines, coverage `none`, inbound coupling 2, 22 commits, last substantive change 2019-01-19 (`309583b8e`).
+335 lines, coverage `none`, inbound coupling 2, 22 commits, last substantive change 2018-09-26 (`86f08600c`).
+
+A note on that date, because it is the one row in the table that the first two stages of the classifier get wrong. Stages one and two report `309583b8e consolidate attr_url function (#2143)` of 2019-01-19, which is untyped and touches few enough files to pass the breadth test. Stage four discards it: the subject matches the mechanical-intent keyword set on both `consolidate` and `attr_url`, and reading the commit confirms it is a repository-wide rename of one escaping helper to another. The surviving commit is `86f08600c` of 2018-09-26. Both dates fall in the same volatility band, so the composed score of 7 is the same either way; the date itself is corrected because the table claims to report behavioural change and that commit is not one.
 
 VERIFIED: 335 lines across 3 functions, at `library/edihistory/edih_997_error.php:L41`, `:L203` and `:L320`. This file extracts rejections from the 997 functional acknowledgement and 999 implementation acknowledgement - the transactions in which a clearinghouse reports that a transmitted batch of claims did or did not parse. It is the only code that answers "was the batch accepted", so a change that causes it to miss a rejection converts a rejected batch into one that appears to have been accepted. The consequence is a claim that will never be paid and never be chased, and there is no test asserting the extraction.
 
@@ -482,25 +527,17 @@ VERIFIED: the file carries other write and read points at `src/Billing/BillingRe
 
 ### src/Billing/SLEOB.php
 
-304 lines, coverage `none`, inbound coupling 10, 19 commits, last substantive change 2026-02-09 (`4ca569023`). Composed score 7, and **escalated** under rule E.
+304 lines, coverage `none`, inbound coupling 9, 19 commits, last substantive change 2026-02-09 (`4ca569023`). Composed score 6, and **escalated** under rule E on the third citation below.
 
 This is the accounts-receivable poster, so every line in it is one line from a patient- or payer-facing dollar amount, and three regions each independently justify the classification.
 
-VERIFIED: `src/Billing/SLEOB.php:L41-L42` builds a query in which the patient identifier is interpolated into the statement text while the value beside it is bound as a parameter. The inconsistency within a single statement is the finding; the security dimension of it is flagged, not analysed, in the appendix of [defect-candidates.md](defect-candidates.md), and it is the escalation trigger for this row because the data reaching it comes from a remittance file the payer supplies.
+VERIFIED: `src/Billing/SLEOB.php:L41-L42` builds a query in which the patient identifier is interpolated into the statement text while the value beside it is bound as a parameter. The inconsistency within a single statement is the finding, and the data reaching it comes from a remittance file the payer supplies. The security dimension of it is flagged, not analysed, in the appendix of [defect-candidates.md](defect-candidates.md). It is not the escalation trigger for this row: a malformed or hostile identifier here produces a failing or wrong query rather than a silent one, so it does not meet the silent-failure condition of rule E.
 
 VERIFIED: `src/Billing/SLEOB.php:L98-L104` is a dry-run branch that falls off the end of its function, so the debug path returns nothing rather than returning what the real path returns. A caller that treats the dry run as a preview of the real behaviour is comparing a value against nothing. The session insert it bypasses is at `src/Billing/SLEOB.php:L95-L97`.
 
-VERIFIED: `src/Billing/SLEOB.php:L285-L288` decides which payer to advance a claim to by converting the encounter's billed-level watermark to a number and then testing it with a mixed `&&` and `||` condition that is not parenthesised, so the grouping is determined by operator precedence rather than stated. This is the tertiary-payer boundary, and it is silent by design: nothing is displayed when the advance does not happen.
+VERIFIED: `src/Billing/SLEOB.php:L285-L288` decides which payer to advance a claim to by converting the encounter's billed-level watermark to a number and then testing it with a mixed `&&` and `||` condition that is not parenthesised, so the grouping is determined by operator precedence rather than stated. This is the tertiary-payer boundary, and it is silent by design: nothing is displayed when the advance does not happen. This is the escalation trigger for this row under rule E - the defect is cited in this file and the composed score of 6 is below the high-risk threshold, so the escalation changes the band rather than restating it.
 
 VERIFIED: `src/Billing/SLEOB.php:L221` marks part of this file deprecated in favour of `src/PaymentProcessing/Recorder.php`. A file that is both deprecated and uncovered is the worst combination for a refactor, because the deprecation invites change while the absent coverage removes the means of validating it - and, as the coverage census records, the replacement is untested too.
-
-### src/Billing/Claim.php
-
-2,287 lines, coverage `tests/Tests/Isolated/Billing/ClaimCountMethodsTest.php`, inbound coupling 6, **53 commits - the highest of any file in `src/Billing/`**, last substantive change 2026-06-18 (`5826c57e3`). Composed score 5, and **escalated** under rule E.
-
-This is the only high-risk row whose coverage cell names a test, and the reason it is still high-risk is the gap between what the cell says and what the test does. VERIFIED: the covering test drives two accessor methods through an anonymous subclass whose constructor is overridden to a no-op at `tests/Tests/Isolated/Billing/ClaimCountMethodsTest.php:L42-L46`. The real constructor, which is where this class assembles the claim from the database, is never executed by any test. A coverage cell reading as covered, over a 2,287-line class of which two accessors are exercised, is the single most misleading cell in the master table, and it is called out here so that nobody treats it as a safety net.
-
-VERIFIED: the escalation trigger is an invisible cross-generation dependency. `src/Billing/Claim.php:L288` reads the payer row and `src/Billing/Claim.php:L289` constructs `InsuranceCompany`, a root-namespace legacy class, with no import declaring it - the imports at `src/Billing/Claim.php:L20-L25` are all within the modern namespace. The class is resolvable only because the autoload configuration maps the legacy class directory, as [architecture.md](architecture.md) records. The consequence for a refactor is that reading this file's header gives no indication that it depends on generation-1 code at all, so the dependency is invisible to exactly the inspection a developer performs first.
 
 ### src/Billing/BillingProcessor/X12RemoteTracker.php
 
@@ -508,7 +545,7 @@ VERIFIED: the escalation trigger is an invisible cross-generation dependency. `s
 
 VERIFIED: a failed upload is recorded as a success. The upload-failure branch at `src/Billing/BillingProcessor/X12RemoteTracker.php:L112-L117` handles the error and then does not skip the rest of the loop body, in contrast with the directory-change error branch at `src/Billing/BillingProcessor/X12RemoteTracker.php:L104`, which does skip it. Control therefore reaches `src/Billing/BillingProcessor/X12RemoteTracker.php:L120-L121`, which sets the status to the success constant and persists it, over a stale comment at `:L119`. VERIFIED: the error constant the failure branch is meant to record is declared at `src/Billing/BillingProcessor/X12RemoteTracker.php:L30` with a misspelling in the identifier itself, and the table it writes is named at `:L33`.
 
-The operator-visible symptom is the reason a 216-line file with a coupling count of 3 sits in this section: an undelivered transmission is displayed as delivered. Nothing is shown to be wrong, so nothing prompts anyone to resend, and the claims in that batch are never paid and never chased. The defect and its proposed verification are registered in [defect-candidates.md](defect-candidates.md).
+The operator-visible symptom is the reason a 216-line file with a coupling count of 3 sits in this section: an undelivered transmission is displayed as delivered. VERIFIED: both writes happen. The failure branch persists the error status at `src/Billing/BillingProcessor/X12RemoteTracker.php:L116` and appends the failure text to the row's message list at `:L114-L115`, and then `:L120-L121` overwrites the status with the success constant and persists the row again. The row therefore ends with a status of success and a message column that still contains the upload failure, the messages being json-encoded into the `text` column declared at `sql/database.sql:L14155` by the update path at `src/Billing/BillingProcessor/X12RemoteTracker.php:L165-L170`. INFERRED (confidence: High): claims in such a batch go unpaid and unchased until their absence is noticed by some other route. Basis: the status column is the only field the transport records a verdict in and it has been set to success, so nothing in the code raises, retries or reports; what happens next depends on practice workflow, which is outside this repository. The defect and its proposed verification are registered in [defect-candidates.md](defect-candidates.md).
 
 **A note on the path.** This class lives at `src/Billing/BillingProcessor/X12RemoteTracker.php`, inside the batch-pipeline directory. There is no transport tracker at the top level of `src/Billing/`, so a citation that omits the `BillingProcessor/` path segment does not resolve to anything and should be corrected wherever it appears.
 
@@ -520,15 +557,15 @@ The generations are defined in [architecture.md](architecture.md) and are used h
 
 | Generation | Files | PHP lines | high-risk | caution | safe |
 |------------|------:|----------:|----------:|--------:|-----:|
-| 1, legacy procedural | 20 | 16,207 | 12 | 7 | 1 |
-| 2, namespaced but untyped | 38 | 13,906 | 6 | 21 | 11 |
+| 1, legacy procedural | 20 | 16,207 | 12 | 8 | 0 |
+| 2, namespaced but untyped | 38 | 13,906 | 6 | 23 | 9 |
 | 3, strict-typed extraction target | 8 | 2,280 | 0 | 2 | 6 |
 | 4, strict-typed payment namespace | 1 | 228 | 0 | 1 | 0 |
-| **Total** | **67** | **32,621** | **18** | **31** | **18** |
+| **Total** | **67** | **32,621** | **18** | **34** | **15** |
 
 Three readings follow directly from that table.
 
-**Risk is concentrated in generation 1 to a degree that no single file's row conveys.** Twelve of the twenty generation-1 files are high-risk - 60 percent of that generation against 16 percent of generation 2 - and the one generation-1 file classified safe is `library/edihistory/codes/code_formatter.ods`, which is a spreadsheet rather than code. In executable terms, generation 1 has no safe files at all.
+**Risk is concentrated in generation 1 to a degree that no single file's row conveys.** Twelve of the twenty generation-1 files are high-risk - 60 percent of that generation against 16 percent of generation 2 - and **not one generation-1 file is classified safe**. That is a literal zero in the column rather than a caveat about executable lines: the remaining eight generation-1 rows are all `caution`, including the non-PHP `library/edihistory/codes/code_formatter.ods`, which composes to 5 on a coverage cell of `none` and a last substantive change in 2016.
 
 **Generation 3 has no high-risk files, and that is the extraction working.** All eight strict-typed files are safe or caution, and the two caution rows are `src/Billing/DaySheet/DaySheetTotals.php` and `src/Billing/DaySheet/SlotTotals.php`, both of which score there only because they carry `none` in the coverage column. The four EDI-related generation-3 classes are the only group in the subsystem where a change can be validated by running something. That is the empirical argument for continuing the extraction rather than working around it, which is what [extraction-roadmap.md](extraction-roadmap.md) sequences.
 
@@ -549,9 +586,9 @@ This is the inverse distribution stated numerically. Coverage is not merely spar
 
 VERIFIED: **23,366 of the 32,621 in-scope PHP lines, or 71.6 percent, sit in files with no test at all.** Eight of the twelve files over a thousand lines are uncovered, and those eight alone account for 13,691 lines - more than the total covered surface across all 67 files.
 
-The four covered files above a thousand lines deserve their caveats stated rather than counted, because two of the four are covered far more thinly than the count implies. `src/Billing/EdiHistory/X12File.php` at 1,566 lines has a 415-line dedicated test, and `src/Billing/EDI270.php` at 1,162 lines has a 274-line dedicated test; both are genuine. `src/Billing/Claim.php` at 2,287 lines has a 128-line test that drives two accessors through a bypassed constructor, and `src/Billing/X125010837I.php` at 1,225 lines has a 40-line test covering date derivation. Counting the latter two as covered is defensible for the table and misleading as a refactor plan, which is why the first is escalated to high-risk and the second is not called safe on coverage grounds alone.
+The four covered files above a thousand lines deserve their caveats stated rather than counted, because two of the four are covered far more thinly than the count implies. `src/Billing/EdiHistory/X12File.php` at 1,566 lines has a 415-line dedicated test, and `src/Billing/EDI270.php` at 1,162 lines has a 274-line dedicated test; both are genuine. `src/Billing/Claim.php` at 2,287 lines has a 128-line test that drives two accessors through a bypassed constructor, and `src/Billing/X125010837I.php` at 1,225 lines has a 40-line test covering date derivation. This table counts both of the latter as covered, because a test does exist for each. The point table does not: it reads the `narrow` marker defined in [Signal 2 the coverage column](#signal-2-the-coverage-column) as 2 points rather than 0, which is what places `src/Billing/Claim.php` in the high-risk band on arithmetic alone and `src/Billing/X125010837I.php` in `caution` rather than `safe`. The two smaller narrow rows, `src/Billing/BillingProcessor/BillingClaimBatch.php` and `src/Billing/BillingProcessor/BillingClaim.php`, are `caution` for the same reason.
 
-One further asymmetry: 18 files are high-risk and they hold 20,221 lines, 62.0 percent of the subsystem, while the 18 safe files hold 4,931 lines, 15.1 percent. Risk in this subsystem is not spread thin across many small files; it is concentrated in a small number of very large ones.
+One further asymmetry: 18 files are high-risk and they hold 20,221 lines, 62.0 percent of the subsystem; the 34 caution files hold 8,974 lines, 27.5 percent; and the 15 safe files hold 3,426 lines, 10.5 percent. Risk in this subsystem is not spread thin across many small files; it is concentrated in a small number of very large ones.
 
 The following chart answers one question: where does a file sit when its composed risk score is plotted against how strongly it is covered?
 
@@ -560,34 +597,34 @@ quadrantChart
     title Composed risk score against strength of test coverage
     x-axis No test --> Dedicated test
     y-axis Low composed score --> High composed score
-    quadrant-1 Large and covered
-    quadrant-2 Refactor blind spot
-    quadrant-3 Small and unproven
-    quadrant-4 Small and covered
+    quadrant-1 High score, strong coverage
+    quadrant-2 High score, weak coverage
+    quadrant-3 Low score, weak coverage
+    quadrant-4 Low score, strong coverage
     "BillingUtilities.php": [0.2, 0.83]
     "edih_csv_inc.php": [0.2, 0.75]
     "edih_io.php": [0.2, 0.67]
-    "SLEOB.php": [0.2, 0.58]
+    "X125010837P.php": [0.2, 0.58]
     "Recorder.php": [0.2, 0.42]
     "HCFAInfo.php": [0.2, 0.33]
     "LoggerInterface.php": [0.2, 0.25]
     "ProcessingTaskInterface.php": [0.2, 0.08]
-    "Claim.php": [0.45, 0.42]
+    "Claim.php": [0.45, 0.58]
     "X12File.php": [0.85, 0.25]
     "BillRow.php": [0.85, 0.08]
 ```
 
 The chart plots a representative subset of 11 of the 67 files rather than all of them; the complete data for every file remains in [Master Risk Table](#master-risk-table), and every label above is the basename of exactly one row there, so it can be searched for directly.
 
-The selection rule is mechanical, because the alternative is a chart that cannot be read. Mermaid's `quadrantChart` performs no label de-collision: two files plotted at the same coordinate have their labels printed on the same baseline, one over the other, and both become illegible. Since the vertical position is a composed score that takes only eleven distinct values across 67 files, and the horizontal position takes three, the 67 rows collapse onto at most 33 available points. VERIFIED: plotting all of them would put fourteen labels on the single point where a composed score of 4 meets a coverage cell of `none`, ten more on the point for score 7, and eight on the point for score 5. The subset therefore takes **at most one file per plotted coordinate** - for each composed score, one file whose coverage cell is `none` and, where the same score also has a covered file, one of those - which is what allows the same score to appear once on each side of the chart. Three scores are omitted outright: 6, because it maps exactly onto the horizontal midline and would straddle two quadrants rather than sit in either; 0, because it maps onto the bottom border of the frame; and 2, because no covered file at that score has a basename short enough to render inside the right border. Those omissions cost nothing that the table does not still carry.
+The selection rule is mechanical, because the alternative is a chart that cannot be read. Mermaid's `quadrantChart` performs no label de-collision: two files plotted at the same coordinate have their labels printed on the same baseline, one over the other, and both become illegible. Since the vertical position is a composed score that takes only eleven distinct values across 67 files, and the horizontal position takes three, the 67 rows collapse onto at most 33 available points. VERIFIED: plotting all of them would put fourteen labels on the single point where a composed score of 4 meets a coverage cell of `none`, nine more on the point for score 7 and nine on the point for score 5. The subset therefore takes **at most one file per plotted coordinate** - for each composed score, one file whose coverage cell is `none`, and for three of the scores one covered file as well - which is what allows the same score to appear at more than one horizontal position. Three scores are omitted outright: 6, because it maps exactly onto the horizontal midline and would straddle two quadrants rather than sit in either; 0, because it maps onto the bottom border of the frame; and 2, because no covered file at that score has a basename short enough to render inside the right border. The score-6 omission costs one row a reader will look for: `src/Billing/SLEOB.php`, whose composed score is 6, so its evidence is in [src/Billing/SLEOB.php](#srcbillingsleobphp) rather than on the chart. Those omissions cost nothing that the table does not still carry.
 
 INFERRED (confidence: High): a reader who regenerates this chart after the code moves will reintroduce collisions unless the same one-file-per-coordinate rule is reapplied. Basis: the collision behaviour is a property of the diagram library rather than of this data, and it reproduces identically outside a browser in the reference renderer, so nothing about a future data set will prevent it.
 
-Both axes are derived from the master table rather than invented for the chart. The vertical position is the composed score of [How the four signals compose into a classification](#how-the-four-signals-compose-into-a-classification) divided by its maximum of 12, so a point above the midline is a file scoring 7 or more, which is the high-risk band. The horizontal position encodes coverage strength in three steps: 0.20 for a coverage cell of `none`, 0.45 for a file whose named test exercises only a small part of it, and 0.85 for a file with a dedicated test. The middle step sits left of centre deliberately, because narrow coverage is nearer to no coverage than to real coverage for refactor purposes; the file plotted there is `src/Billing/Claim.php`, whose test bypasses the real constructor at `tests/Tests/Isolated/Billing/ClaimCountMethodsTest.php:L42-L46` and drives two accessors through the resulting stub.
+Both axes are derived from the master table rather than invented for the chart. The vertical position is the composed score of [How the four signals compose into a classification](#how-the-four-signals-compose-into-a-classification) divided by its maximum of 12, so a point above the midline is a file scoring 7 or more, which is the high-risk band. The horizontal position encodes coverage strength in three steps: 0.20 for a coverage cell of `none`, 0.45 for a cell marked `narrow`, and 0.85 for a file with a dedicated test. Those are the same three tiers the point table scores, at 3, 2 and 0 points respectively, so the two axes are not independent inventions - the horizontal position and the coverage component of the vertical position are the same measurement read two ways. The middle step sits left of centre deliberately, because narrow coverage is nearer to no coverage than to real coverage for refactor purposes; the file plotted there is `src/Billing/Claim.php`, whose test bypasses the real constructor at `tests/Tests/Isolated/Billing/ClaimCountMethodsTest.php:L42-L46` and drives two accessors through the resulting stub.
 
-The upper-left quadrant is the finding, and each of the four files plotted in it is uncovered and consequential at once. `src/Billing/BillingUtilities.php` writes the claim rows at `src/Billing/BillingUtilities.php:L1688` and `:L1698`. `library/edihistory/edih_csv_inc.php` owns the storage path that every other legacy script resolves through, at `library/edihistory/edih_csv_inc.php:L335`. `library/edihistory/edih_io.php` holds the only database statement in the entire 14,979-line legacy tree at `library/edihistory/edih_io.php:L737`, interpolates its result into markup unescaped at `:L739` and compares a decimal column against a string literal at `:L740`. `src/Billing/SLEOB.php` builds a query from payer-supplied remittance data at `src/Billing/SLEOB.php:L41-L42` and decides which payer level to advance a claim to with an unparenthesised mixed condition at `:L285-L288` that displays nothing when the advance does not happen.
+The upper-left quadrant is the finding: every file plotted in it scores 7 or more while its coverage is `none` or `narrow`. Four are uncovered outright. `src/Billing/BillingUtilities.php` writes the claim rows at `src/Billing/BillingUtilities.php:L1688` and `:L1698`. `library/edihistory/edih_csv_inc.php` owns the storage path that every other legacy script resolves through, at `library/edihistory/edih_csv_inc.php:L335`. `library/edihistory/edih_io.php` holds the only database statement in the entire 14,979-line legacy tree at `library/edihistory/edih_io.php:L737`, interpolates its result into markup unescaped at `:L739` and compares a decimal column against a string literal at `:L740`. `src/Billing/X125010837P.php` builds every outbound professional claim, plants a hardcoded transaction-set reference at `src/Billing/X125010837P.php:L111` that the batch class has to locate and overwrite, and carries a paperwork segment whose own comment block at `src/Billing/X125010837P.php:L778-L784` records the attachment feature as unimplemented immediately above the segment that points at an attachment. The fifth file in that quadrant, `src/Billing/Claim.php`, is the narrowly covered one, and it plots at 0.45 rather than 0.20 for that reason alone.
 
-The upper-right quadrant is empty, and that emptiness is not an artefact of the subset. VERIFIED: not one file in the master table scores 7 or more and also names a covering test, so nothing can be plotted there at all. Of the eighteen high-risk rows, seventeen carry the literal `none` and exactly one names a test - `src/Billing/Claim.php` - and that row reaches the high-risk band by escalation from a composed score of 5, so it plots below the midline rather than in the empty quadrant. The largest genuinely covered file, `src/Billing/EdiHistory/X12File.php`, sits in the lower-right because its dedicated 415-line test is precisely what pulled its score down.
+The upper-right quadrant is empty, and that emptiness is not an artefact of the subset. VERIFIED: of the eighteen high-risk rows, seventeen carry the literal `none` and exactly one names a covering test - `src/Billing/Claim.php` - and that one is marked `narrow`, so it plots at 0.45, left of centre, and lands in the upper-left rather than the upper-right. Not one file in the master table both scores 7 or more and names a dedicated test, so the upper-right cannot be populated at all. The largest genuinely covered file, `src/Billing/EdiHistory/X12File.php`, sits in the lower-right because its dedicated 415-line test is precisely what pulled its score down to 3 points of size and nothing else.
 
 ### Baselined static analysis findings by generation
 
@@ -601,9 +638,11 @@ The distribution is the point. Eleven of the twelve genuinely clean files are th
 
 Line anchors drift and history grows, so this table is designed to be regenerated rather than hand-maintained. The commands below are the actual basis of every column above, run against branch `master` at commit `b7a7e690e419de3451740f995b768a8e8e5fba87`. **A future reader should re-run them rather than trusting a stale table**, and should treat any disagreement between a re-run and the figures above as evidence that the code moved rather than that the command is wrong.
 
-Establish the in-scope file list once. All 67 paths are enumerated in the master table above, and the same set can be rebuilt from the tree:
+Establish the in-scope file list once. All 67 paths are enumerated in the master table above, and the same set can be rebuilt from the tree. The list goes to a `mktemp` file whose path is carried in `$inscope` and removed by an `EXIT` trap, so nothing is left in a shared location and no second reader can collide with a fixed name; the consequence is that the remaining blocks in this section read `$inscope` and must therefore be run in the same shell session as this one.
 
 ```bash
+inscope=$(mktemp) || exit 1
+trap 'rm -f "$inscope"' EXIT
 {
   find src/Billing -name '*.php'
   find library/edihistory -name '*.php'
@@ -612,8 +651,8 @@ Establish the in-scope file list once. All 67 paths are enumerated in the master
                 library/classes/InsuranceCompany.class.php \
                 library/classes/Controller.class.php \
                 src/PaymentProcessing/Recorder.php
-} | sort -u > /tmp/edi-inscope.txt
-wc -l < /tmp/edi-inscope.txt    # expect 67
+} | sort -u > "$inscope"
+wc -l < "$inscope"    # expect 67
 ```
 
 **The size column.** The non-PHP spreadsheet has no meaningful line count and is reported as not applicable:
@@ -622,7 +661,7 @@ wc -l < /tmp/edi-inscope.txt    # expect 67
 while read -r f; do
   case "$f" in *.ods) printf '%s\tn/a\n' "$f"; continue;; esac
   printf '%s\t%s\n' "$f" "$(wc -l < "$f")"
-done < /tmp/edi-inscope.txt
+done < "$inscope"
 ```
 
 **The change-frequency column** counts every commit reaching the path at its current name, mechanical and substantive together:
@@ -630,30 +669,99 @@ done < /tmp/edi-inscope.txt
 ```bash
 while read -r f; do
   printf '%s\t%s\n' "$f" "$(git log --oneline -- "$f" | wc -l)"
-done < /tmp/edi-inscope.txt
+done < "$inscope"
 ```
 
 Do not add `--follow` to that command. It crosses renames, and much of this subsystem was relocated when the modern namespace was created, so the figures it returns are not comparable with the table above: for `src/Billing/X125010837P.php` the command as written returns 41 and the same command with `--follow` returns 60. Both numbers are true and they answer different questions. The table reports the former, on the reasoning that a file's churn under its present identity is what a developer editing it today is exposed to, and that a rename is itself one of the mechanical events the classifier is built to discount.
 
-**The last-substantive-change column** applies the classifier of [Signal 1 the mechanical versus substantive commit classifier](#signal-1-the-mechanical-versus-substantive-commit-classifier) to each commit, newest first, and reports the first one that survives it. Breadth is the number of files the commit changed, which is what the second stage tests:
+**The last-substantive-change column** applies the classifier of [Signal 1 the mechanical versus substantive commit classifier](#signal-1-the-mechanical-versus-substantive-commit-classifier) to each commit, newest first, and reports the first one that survives it. All four stages are reproduced below in full - the mechanical type set, the breadth threshold, the substantive-type test and the stage-four keyword set - because a partial implementation of this classifier does not merely lose precision, it returns different dates. The first two stages express cleanly in shell; stage four needs a regular expression over the subject line, so the whole classifier is given as one script rather than split across two languages. Save it as `classify.py` in the repository root, which is the name the commands further down invoke.
 
-```bash
-substantive_head() {
-  git log --format='%h%x09%s' -- "$1" | while IFS=$'\t' read -r h subj; do
-    case "$subj" in
-      refactor*|style*|chore*|ci*|build*|docs*|test*) continue ;;
-    esac
-    breadth=$(git show --pretty=format: --name-only "$h" | grep -c .)
-    [ "$breadth" -ge 50 ] && continue
-    printf '%s\t%s\t%s files\t%s\n' "$(git log -1 --date=short --format=%ad "$h")" "$h" "$breadth" "$subj"
-    return
-  done
-}
-substantive_head src/Billing/X125010837P.php
-substantive_head library/edihistory/edih_csv_parse.php
+```python
+#!/usr/bin/env python3
+"""The complete four-stage classifier behind the last-substantive-change column.
+
+Usage: classify.py <path>   ->  prints "<date> <hash> <subject>", or "none ever"
+Set BREADTH_THRESHOLD in the environment to re-run at another stage-two value.
+"""
+import os
+import re
+import subprocess
+import sys
+
+BREADTH_THRESHOLD = int(os.environ.get('BREADTH_THRESHOLD', '50'))
+
+# Stage one: types whose own definition asserts that behaviour did not change.
+MECHANICAL_TYPES = {'refactor', 'style', 'chore', 'ci', 'build', 'docs', 'test'}
+
+# Stage three: types that assert that behaviour did change. The two trailing
+# entries are off-vocabulary types that occur in this history and are kept
+# rather than discarded.
+SUBSTANTIVE_TYPES = {'fix', 'feat', 'perf', 'revert', 'bug', 'fixes'}
+
+# A Conventional Commits type, with an optional scope and an optional bang.
+TYPE = re.compile(r'^([a-z]+)(\([^)]*\))?!?:', re.I)
+
+# Stage four: mechanical intent in the subject of a commit that declares no type.
+MECHANICAL_INTENT = re.compile(
+    r'psr[- ]?[0-9]*'
+    r'|coding standard|codesniffer|phpcbf|phpcs|phpstan|psalm|rector|lint'
+    r'|php ?[578](\.[0-9]+)?\b|php ?version|php ?7|php ?8'
+    r'|namespace|autoload'
+    r'|escap|sanitiz|sanitis|html ?escap|attr_url|variable binding|https'
+    r'|typo|comment|whitespace|indent|format|casing'
+    r'|short array|ternary|null coalesc'
+    r'|renam|relocat|\bmove\b|\bmoved\b|\bfold\b|migrate|consolidate'
+    r'|jquery|deprecated|strict',
+    re.I,
+)
+
+
+def breadth(commit):
+    """The number of files the commit changed."""
+    out = subprocess.run(
+        ['git', 'show', '--pretty=format:', '--name-only', commit],
+        capture_output=True, text=True, check=True).stdout
+    return sum(1 for line in out.splitlines() if line.strip())
+
+
+def classify(commit, subject):
+    declared = TYPE.match(subject)
+    kind = declared.group(1).lower() if declared else None
+    if kind in MECHANICAL_TYPES:
+        return 'mechanical'
+    if breadth(commit) >= BREADTH_THRESHOLD:
+        return 'mechanical'
+    if kind is not None:
+        return 'substantive'
+    return 'mechanical' if MECHANICAL_INTENT.search(subject) else 'substantive'
+
+
+log = subprocess.run(
+    ['git', 'log', '--format=%h%x09%ad%x09%s', '--date=short', '--', sys.argv[1]],
+    capture_output=True, text=True, check=True).stdout
+for line in log.splitlines():
+    commit, date, subject = line.split('\t', 2)
+    if classify(commit, subject) == 'substantive':
+        print(date, commit, subject)
+        break
+else:
+    print('none ever')
 ```
 
-Run those two calls side by side to reproduce the misleading-date finding: the generator reports a 2026 date and the legacy parser reports 2016, while `git log -1 --format=%ad` reports 2026 for both. To inspect the breadth distribution that justifies the threshold of 50:
+Three details of that script are the ones most easily lost when reimplementing it from the prose, and each of them changes the output. **Stage three accepts any declared type that is not in the mechanical set**, not only the four canonical substantive types, which is what stops two off-vocabulary types in this history from being dropped: VERIFIED, `bug` occurs on two file-commit pairs and the malformed `fixes` on one, all three substantive, and VERIFIED, no other declared type occurs in these paths at all, so the whitelist and the fall-through agree on every commit present. **Stage four runs only when no type is declared**, so it can never override an author's own assertion. And **the type pattern is anchored and tolerates a scope and a bang**, so `fix(claims):` and `refactor!:` are both recognised as typed rather than falling through to the keyword stage.
+
+VERIFIED: run across the 66 PHP paths of the in-scope list, this script reproduces the **Last substantive change** cell of all 66 rows exactly as published, and the non-PHP spreadsheet row is the sixty-seventh. A classifier implementing only the first two stages does not: it disagrees on the seven rows named in [Signal 1 the mechanical versus substantive commit classifier](#signal-1-the-mechanical-versus-substantive-commit-classifier), which is the reason the complete version is published here rather than summarised.
+
+Run it against two files side by side to reproduce the misleading-date finding:
+
+```bash
+python3 classify.py src/Billing/X125010837P.php
+python3 classify.py library/edihistory/edih_csv_parse.php
+git log -1 --date=short --format=%ad -- src/Billing/X125010837P.php
+git log -1 --date=short --format=%ad -- library/edihistory/edih_csv_parse.php
+```
+
+The first two disagree by nearly ten years - 2026-04-08 against 2016-08-13 - while the last two both report 2026. To inspect the breadth distribution that justifies the threshold of 50:
 
 ```bash
 git log --format='%h%x09%s' -- src/Billing/X125010837P.php | while IFS=$'\t' read -r h subj; do
@@ -661,28 +769,20 @@ git log --format='%h%x09%s' -- src/Billing/X125010837P.php | while IFS=$'\t' rea
 done | sort -rn
 ```
 
-Because the threshold is a chosen parameter rather than a boundary the data forces, re-check its insensitivity before trusting a regenerated column. Parameterise `substantive_head` on the threshold and compare the whole column across a range of values:
+Because the threshold is a chosen parameter rather than a boundary the data forces, re-check its insensitivity before trusting a regenerated column. The script above reads the threshold from the environment for exactly this purpose, so the sweep needs no second implementation and cannot drift from the one that produced the table:
 
 ```bash
-substantive_at() {   # $1 = threshold, $2 = file
-  git log --format='%h%x09%s' -- "$2" | while IFS=$'\t' read -r h subj; do
-    case "$subj" in refactor*|style*|chore*|ci*|build*|docs*|test*) continue ;; esac
-    [ "$(git show --pretty=format: --name-only "$h" | grep -c .)" -ge "$1" ] && continue
-    git log -1 --date=short --format=%ad "$h"
-    return
-  done
-}
-for t in 40 45 50 55 57 58 75; do
-  printf '%s\t' "$t"
+for th in 40 45 50 55 57 58 75; do
+  printf '%s\t' "$th"
   while read -r f; do
     case "$f" in *.ods) continue ;; esac
-    printf '%s ' "$(substantive_at "$t" "$f")"
-  done < /tmp/edi-inscope.txt
+    BREADTH_THRESHOLD=$th python3 classify.py "$f" | cut -d' ' -f1 | tr '\n' ' '
+  done < "$inscope"
   printf '\n'
 done
 ```
 
-Every line from 45 through 57 is identical. If a re-run finds the identical band has narrowed or moved, the classifier parameter needs revisiting before the table is republished, and the method section above needs its band updated with it.
+Every line from 45 through 57 is identical, which is the measured insensitivity the method section relies on. The two lines outside that band move in opposite directions, and the direction is worth checking rather than assuming: a **lower** threshold discards more commits as sweeps and so pushes dates **earlier**, while a **higher** one accepts more of them and pushes dates **later**. If a re-run finds the identical band has narrowed or moved, the classifier parameter needs revisiting before the table is republished, and the method section above needs its band updated with it.
 
 **The coverage column.** Match by the class actually exercised, never by file name. For a namespaced class, search the whole test tree for a binding reference; for a legacy procedural file, search for a require of its path or a call to one of its global functions:
 
@@ -766,7 +866,7 @@ EOF
 
 Pass a directory prefix to total a tree, a full path to total one file, or an empty string to total the repository. The three figures quoted in this document come from exactly that: `library/edihistory/` reports 988 entries and 3,169 occurrences, `src/Billing/EdiHistory/X12File.php` reports 133 and 413, and an empty prefix reports 73,842 and 139,720.
 
-**The composition.** With the four columns in hand, the risk band is arithmetic and involves no further judgement: apply the point table in [How the four signals compose into a classification](#how-the-four-signals-compose-into-a-classification), then apply escalation rule E only where a silent-failure or silent-money defect is registered in [defect-candidates.md](defect-candidates.md) with a citation. Anything that cannot be justified by those two steps does not belong in the risk column.
+**The composition.** With the four columns in hand, the risk band is arithmetic and involves no further judgement: apply the point table in [How the four signals compose into a classification](#how-the-four-signals-compose-into-a-classification), reading the coverage cell as three tiers rather than two, then apply escalation rule E only where both of its conditions hold - a silent-failure or silent-money defect cited to a line range **in that same file** and registered in [defect-candidates.md](defect-candidates.md), and a composed score below 7 so that the escalation changes the band rather than restating it. Anything that cannot be justified by those two steps does not belong in the risk column.
 
 A final caution about what these commands do and do not establish. They measure history, size, references and configuration. They do not run the test suite, and nothing in this document did: the classifications above rest on static reading of code plus `git log`, so a re-run reproduces the same table without proving that any covered file currently passes its test. Verifying that requires executing `phpunit.xml` and `phpunit-isolated.xml`, which is outside the scope of this document.
 
@@ -793,13 +893,13 @@ Compiled by static reading of the OpenEMR source tree and its git history at bra
 
 ### Method
 
-Four measured signals per file - substantive-change recency from a classified `git log`, test coverage matched by class exercised across all 571 files of the test tree, inbound coupling counted repository-wide under a binding-reference rule, and executable size - composed into a published point table, with escalation applied only on a cited defect. Every command used is reproduced in [How to Re-run This Analysis](#how-to-re-run-this-analysis). No code was executed and no test suite was run in the production of this document; claims rest on reading code, schema and history, in the order of precedence defined in [README.md](README.md).
+Four measured signals per file - substantive-change recency from a classified `git log`, test coverage matched by class exercised across all 571 files of the test tree and graded dedicated or narrow, inbound coupling counted repository-wide under a binding-reference rule applied to code text only, and executable size - composed into a published point table, with escalation applied only where a defect is cited in the same file and the escalation changes the band. Every command used is reproduced in [How to Re-run This Analysis](#how-to-re-run-this-analysis). No code was executed and no test suite was run in the production of this document; claims rest on reading code, schema and history, in the order of precedence defined in [README.md](README.md).
 
 ### Contributing
 
 - Re-run the commands in [How to Re-run This Analysis](#how-to-re-run-this-analysis) rather than editing cells by hand, and record the commit the re-run was made against.
-- Treat a coverage cell as `none` until a binding reference is found in `tests/`, and treat an incidental load as `none` as well.
-- Escalate a row above its arithmetic only with a citation, and register the underlying defect in [defect-candidates.md](defect-candidates.md) rather than describing it here.
+- Treat a coverage cell as `none` until a binding reference is found in `tests/`, and treat an incidental load as `none` as well. Mark a cell `narrow` when the covering test reaches only a static helper or a stub that bypasses or re-implements the constructor, and cite the line in the test that shows it.
+- Escalate a row above its arithmetic only when the defect is cited to a line range in that same file and the row's composed score is below 7, and register the underlying defect in [defect-candidates.md](defect-candidates.md) rather than describing it here.
 
 **Last Updated:** August 2026
 
