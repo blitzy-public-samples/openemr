@@ -368,12 +368,12 @@ That is `src/Billing/ParseERA.php:L429-L431`. The contradiction is carried as a 
 VERIFIED: the suppressed warning text at `src/Billing/ParseERA.php:L74-L78` reads as an assertion that the situation should not happen, and is inert. That is why an operator sees no message when an existing service line's paid amount is altered.
 
 ```php
-$out['svc'][0]['adj'][$j]['group_code'] = 'CR'; // presuming a correction or reversal
+$out['svc'][0]['adj'][$j]['group_code'] = 'CR';
 $out['svc'][0]['adj'][$j]['reason_code'] = 'Balancing';
 $out['svc'][0]['adj'][$j]['amount'] = $adjtotal;
 ```
 
-That is `src/Billing/ParseERA.php:L69-L71`, reached only after the recomputed payment total has been added to the payer's own first service line at `src/Billing/ParseERA.php:L65`.
+That is `src/Billing/ParseERA.php:L69-L71`, with the trailing comment at `src/Billing/ParseERA.php:L69` omitted from the excerpt because the presumption it records is registered as [BR-B4](#br-b4-an-artificial-service-line-named-claim-absorbs-the-residue) rather than here. The three lines are reached only after the recomputed payment total has been added to the payer's own first service line at `src/Billing/ParseERA.php:L65`.
 
 ### BR-B4 An artificial service line named Claim absorbs the residue
 
@@ -982,12 +982,11 @@ That is `src/Billing/X125010837P.php:L1354-L1356`. The increment is evaluated be
 - **Blast radius:** The dry-run contract is not enforced where a reader would look for it. A second caller written against this signature would reasonably pass the flag and expect it to be honoured, and would insert a charge during a preview with nothing in the helper to stop it; the charge would be inserted as unauthorised, which the comment at `src/Billing/SLEOB.php:L163` states, so it would not immediately appear as billable, but it would be present and would not be removed when the preview ended. Equally, moving or weakening the caller's guard at `interface/billing/sl_eob_process.php:L507` changes preview behaviour with no visible change to the helper. Whether the guarded call is reached at all is decided by the site global registered as [BR-I3](#br-i3-one-switch-turns-a-payer-reported-unknown-code-into-a-charge).
 
 ```php
-//
 public static function arPostCharge($patient_id, $encounter_id, $session_id, $amount, $units, $thisdate, $code, $description, $debug, $codetype = '')
 {
 ```
 
-That is `src/Billing/SLEOB.php:L164-L166`. The flag is the ninth parameter, and the body that opens on the following line never mentions it again.
+That is `src/Billing/SLEOB.php:L165-L166`. The flag is the ninth parameter, and the body that opens on the following line never mentions it again.
 
 ### BR-F9 The institutional generator always declares the claim chargeable
 
@@ -999,12 +998,10 @@ That is `src/Billing/SLEOB.php:L164-L166`. The flag is the ninth parameter, and 
 - **Blast radius:** The encounter-claims feature described in [BR-G7](#br-g7-an-encounter-counts-as-billed-only-when-every-fee-bearing-charge-is-billed) and in the task documentation at `src/Billing/BillingProcessor/Tasks/GeneratorX12.php:L44-L46` is silently unavailable for institutional claims: a practice that enables it gets reporting claims for professional encounters and chargeable claims for institutional ones, from the same setting. The second occurrence has the same effect on payer identifier selection, so an institutional claim also always uses the primary payer identifier rather than the alternate. VERIFIED: the two dispositions the branch chooses between differ in whether the transaction is a request for payment at all, so the branch decides whether the amounts on an institutional claim are presented to the payer as chargeable or as a report. Because the branch is always taken the same way, institutional claims are always chargeable, which is the disposition a practice would normally want; the exposure is that a practice which deliberately configured reporting claims does not get them and is not told.
 
 ```php
-"*" . date('Ymd', $today) .           // transaction creation date
-"*" . date('Hi', $today) .            // transaction creation time
 (($encounter_claim ?? null) ? "*RP" : "*CH") .  // RP = reporting, CH = chargeable
 ```
 
-That is `src/Billing/X125010837I.php:L87-L89`. The name the ternary tests is neither a parameter of the generator at `src/Billing/X125010837I.php:L26` nor assigned anywhere in the file, so the null-coalescing default decides it and the chargeable literal is the only one reachable.
+That is `src/Billing/X125010837I.php:L89`, the last element of the BHT segment the generator assembles at `src/Billing/X125010837I.php:L83-L90`. The name the ternary tests is neither a parameter of the generator at `src/Billing/X125010837I.php:L26` nor assigned anywhere in the file, so the null-coalescing default decides it and the chargeable literal is the only one reachable.
 
 ### BR-F10 A voided receipt is journalled only under one configuration
 
@@ -1418,7 +1415,9 @@ $payerId = OEGlobalsBag::getInstance()->getBoolean('enable_eligibility_requests'
 $NM1[9] = $payerId; // Application Sender's ID
 ```
 
-That is `src/Billing/EDI270.php:L166-L168`. The switch is the condition of the ternary, so the identifier is chosen per request at build time rather than being stored anywhere, and the line above it fixes the qualifier that tells the payer the following element is a payer identifier.
+That is `src/Billing/EDI270.php:L166-L168`. The switch is the condition of the ternary, so the identifier is chosen per request at build time rather than being stored anywhere, and the first of the three lines fixes the qualifier that tells the payer the following element is a payer identifier.
+
+VERIFIED: the trailing comment on the third line is stale and does not describe the element it sits beside. It is reproduced here only as evidence of an out-of-date annotation and is not element meaning. The ninth element of a name segment carries the identifier of the entity that segment names, the qualifier assigned on the first line fixes that identifier as a payer identification number, and the value assigned is one of the two `insurance_companies` payer columns, so the element is a payer identifier. An application sender code is an envelope value written on the functional group header, registered separately as [BR-D7](#br-d7-the-application-sender-code-falls-back-to-the-interchange-sender-identifier), and no name segment carries one. Under the source-of-truth ordering defined in [README.md](README.md) the qualifier assignment settles the meaning, because it is executable and the comment is not.
 
 ## Confidence Summary
 
