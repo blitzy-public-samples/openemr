@@ -626,7 +626,7 @@ Two documents in the repository bear on this subsystem, and one that ought to is
 
 ### The 2016 legacy readme
 
-`Documentation/Readme_edihistory.html` is 246 lines, carries a GPL v2 header at `Documentation/Readme_edihistory.html:L1-L22` with its copyright line at `Documentation/Readme_edihistory.html:L4`, and is dated 2016. It is the only narrative account of any part of this subsystem, and it covers one of the four generations. It is a genuinely good document about generation 1 and it remains worth reading; the notes below record only where it agrees with the code and where it does not.
+`Documentation/Readme_edihistory.html` is 246 lines and carries a GPL v2 header at `Documentation/Readme_edihistory.html:L1-L22`, whose copyright line at `Documentation/Readme_edihistory.html:L4` dates it to 2016 and names its author, Kevin McCormick. It is the only narrative account of any part of this subsystem, and it covers one of the four generations. It is a genuinely good document about generation 1 and it remains worth reading; the notes below record only where it agrees with the code and where it does not.
 
 **Agreement on the handled transaction set.** `Documentation/Readme_edihistory.html:L46` enumerates the types the legacy tree deals with as the 837 claim, the 835 payment, the 270 benefit inquiry, the 271 benefit response, the 276 claim status inquiry, the 277 and 277CA claim status, the 278 authorisation and the 999 acknowledgement, and explicitly records that the 824 type is not dealt with. That list matches the dispatch map in the modern file reader at `src/Billing/EdiHistory/X12File.php:L101-L102`, which maps eight functional-group codes and includes no entry for the 824. A decade later the handled set is unchanged.
 
