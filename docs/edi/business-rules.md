@@ -1094,7 +1094,7 @@ Two things about that distribution are worth stating rather than leaving to be n
 
 The first is that one entry-level INFERRED status does not mean the register contains one inference. Thirty-one of the seventy verified entries carry a labelled inference inside them, almost always in the `Intent:` field and occasionally about a consequence, and each of those carries its own confidence and its own one-line basis. The distinction the notation draws, and which [README.md](README.md) defines, is between a rule whose *existence and effect* are observed and a rule whose existence rests on reading rather than on tracing. Only one rule in this register is of the second kind, and it is the one where the sole direct statement of purpose is a docblock.
 
-The second is that the confidence in a rule is not the confidence in its safety. Every entry in [Group F](#group-f-behaviour-that-would-silently-change-amounts) is verified, which means the register is certain about what those eleven decisions do; it says nothing about whether they are correct. Fourteen entries cross-reference [defect-candidates.md](defect-candidates.md) precisely because a rule can be both faithfully recovered and wrong, and the two registers are meant to be read together at those points.
+The second is that the confidence in a rule is not the confidence in its safety. Every entry in [Group F](#group-f-behaviour-that-would-silently-change-amounts) is verified, which means the register is certain about what those eleven decisions do; it says nothing about whether they are correct. Thirteen entries cross-reference [defect-candidates.md](defect-candidates.md) precisely because a rule can be both faithfully recovered and wrong, and the two registers are meant to be read together at those points. That figure counts entry bodies carrying the cross-reference and not occurrences of the link in this document, three of which sit in the surrounding prose rather than inside an entry, and the thirteen are enumerated here so that the count can be checked rather than taken on trust: [BR-A3](#br-a3-two-coverage-money-fields-escape-the-fixed-point-convention), [BR-A8](#br-a8-a-non-numeric-adjustment-amount-becomes-zero), [BR-B2](#br-b2-provider-level-adjustments-are-excluded-from-ar-and-included-in-the-balance-test), [BR-B7](#br-b7-a-deposit-is-balanced-against-live-ledger-lines-only-and-only-in-a-browser-alert), [BR-C1](#br-c1-three-hardcoded-tables-carry-1391-x12-code-descriptions), [BR-D5](#br-d5-the-claim-identifier-is-recovered-from-the-remittance-by-counting-its-parts), [BR-E2](#br-e2-the-service-date-is-the-first-ten-characters-of-the-encounter-timestamp), [BR-F2](#br-f2-a-code-whose-colon-is-its-first-character-keeps-its-modifier), [BR-F3](#br-f3-a-failed-transmission-is-recorded-as-a-success), [BR-F6](#br-f6-the-attachment-segment-is-emitted-without-being-counted), [BR-F11](#br-f11-a-remittance-carrying-a-medicare-inpatient-adjudication-segment-posts-nothing), [BR-H1](#br-h1-the-claim-version-is-allocated-by-an-unlocked-aggregate-inside-a-transaction) and [BR-H6](#br-h6-the-batch-renumbers-the-transaction-set-and-rewrites-the-reference-it-planted).
 
 Novelty, which is the measure this register was written to satisfy, is recorded per entry rather than in aggregate. Seventy of the seventy-one entries are absent from all four existing documentation sources. The single exception is [BR-H6](#br-h6-the-batch-renumbers-the-transaction-set-and-rewrites-the-reference-it-planted), where a 2016 document records the same condition, proposes a patch that was never applied, and is cited as an agreement rather than restated.
 
@@ -1123,10 +1123,11 @@ Rules were extracted from the conditional and arithmetic expressions themselves,
 
 ### Contributing
 
-- Report an incorrect citation or a rule that no longer holds through GitHub Issues
-- Discuss the interpretation of a rule on the OpenEMR Community Forum
-- Submit a corrected or additional rule as a Pull Request, keeping the six-field entry template and the citation format unchanged
+OpenEMR is an open-source project. To improve these documents:
+
+- **Report Issues:** [GitHub Issues](https://github.com/openemr/openemr/issues) - an incorrect citation, or a rule that no longer holds
+- **Discuss:** [Community Forum](https://community.open-emr.org/) - the interpretation of a rule
+- **Submit Changes:** [Pull Requests](https://github.com/openemr/openemr/pulls) - a corrected or additional rule, keeping the six-field entry template and the citation format unchanged
 
 **Last Updated:** August 2026
-
 **License:** GPL v3

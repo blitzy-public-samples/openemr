@@ -55,7 +55,7 @@ Every stage below carries the same six attributes under the same six labels, in 
 
 The second half of the last attribute is the one most often missing from documentation of this kind, and in this subsystem it is frequently the more consequential half. Four verified failure paths are either silent or actively misleading at the screen: a batch run that terminates the request mid-batch, leaving claims marked billed and no file at all (`src/Billing/BillingProcessor/BillingClaimBatch.php:L220-L226`), a transport failure that is overwritten with a success status (`src/Billing/BillingProcessor/X12RemoteTracker.php:L112-L121`), a tertiary-payer advance that requeues the claim to the payer that has just paid it while the screen reports it as requeued to the secondary (`src/Billing/SLEOB.php:L285-L286` with `interface/billing/sl_eob_process.php:L721-L725`), and a remittance whose posting is abandoned part-way through by an unrecognised segment, leaving every claim that had already been flushed posted and every later one lost (`src/Billing/ParseERA.php:L467-L468`). Each is set out under its own stage, and each is cross-referenced to [defect-candidates.md](defect-candidates.md), which is where a suspected defect is registered with a verification. This document describes behaviour; it proposes no change to any of it.
 
-There is deliberately no seventh attribute for test coverage. Whether a stage's code is exercised by a test is not a property of what that code does, and it changes as tests are added or removed, so recording it inside fourteen stage sections would put fourteen separate places out of date at once. Every stage's coverage verdict is instead collected in [Stage Test Coverage](#stage-test-coverage) below, which names the covering test file and the configuration that collects it, or the literal `none`, for each of S0 through S13. A reader deciding whether to trust a stage's description should read that section alongside it: seven of the fourteen stages have no test that exercises the behaviour described here.
+There is deliberately no seventh attribute for test coverage. Whether a stage's code is exercised by a test is not a property of what that code does, and it changes as tests are added or removed, so recording it inside fourteen stage sections would put fourteen separate places out of date at once. Every stage's coverage verdict is instead collected in [Stage Test Coverage](#stage-test-coverage) below, which names the covering test file and the configuration that collects it, or the literal `none`, for each of S0 through S13. A reader deciding whether to trust a stage's description should read that section alongside it, because the verdict there is the literal `none` for six of the fourteen stages - S1, S2, S6, S7, S9 and S12 - and `none` for one half of each of two more, the charge-capture half of S0 and the poster in S11. That matrix is the exhaustive record; [The seven consequential gaps](#the-seven-consequential-gaps) beneath it expands the seven stages whose untested behaviour this document records as silent, abrupt or financially consequential, which is a subset selected by consequence and not a count of the stages that lack a test.
 
 ### The X12 vocabulary used in this document
 
@@ -1286,9 +1286,9 @@ Which of the fourteen stages above have behavioural test coverage, what the cove
 
 Source for the matrix: the test files and configurations cited in each cell, read at the recorded commit; the entry points in the fourth column are the ones each stage names under its own **Entry point** attribute.
 
-### The seven proven gaps
+### The seven consequential gaps
 
-Seven stages have no test that exercises the behaviour this document attributes to them, and in three of the seven a test exists that a reader could mistake for one that does. Each gap below names the code it leaves unasserted, because these are the stages whose failure modes this document records as silent, abrupt or financially consequential.
+Seven stages are expanded below because the behaviour this document attributes to them is unasserted and the failure mode it records for them is silent, abrupt or financially consequential. That criterion is what selects them, not a count: this is a subset, and the exhaustive coverage verdict is the matrix above. S2, S7 and S9 carry the literal `none` in that matrix as well and are not expanded here, and their rows name the code each of them leaves unasserted. In three of the seven - S3, S5 and S10 - a test exists that a reader could mistake for one that exercises the stage, and each of those three records below what its test actually reaches. Every gap below names the code it leaves unasserted.
 
 **S1 has no test at all, and it is the stage that creates the charge.** VERIFIED: no test under `tests/` names `addBilling`, `updateClaim` or `BillingUtilities`, so neither the insert at `src/Billing/BillingUtilities.php:L1467` nor the claim-version allocation at `src/Billing/BillingUtilities.php:L1679` nor the encounter watermark update at `src/Billing/BillingUtilities.php:L1722` has coverage. The consequence for a reader is that every state transition described under [S1](#stage-s1-charge-capture) and [S2](#stage-s2-claim-selection-and-queueing) rests on code reading alone.
 
@@ -1471,9 +1471,11 @@ Stage boundaries were derived by following control flow from each entry point ra
 
 ### Contributing
 
-- Report an inaccurate citation or a missing stage attribute through GitHub Issues.
-- Discuss the revenue cycle with the wider project on the OpenEMR Community Forum.
-- Correct this document by Pull Request, keeping the six-attribute structure and the citation convention intact.
+OpenEMR is an open-source project. To improve these documents:
+
+- **Report Issues:** [GitHub Issues](https://github.com/openemr/openemr/issues) - an inaccurate citation, or a missing stage attribute
+- **Discuss:** [Community Forum](https://community.open-emr.org/) - the revenue cycle with the wider project
+- **Submit Changes:** [Pull Requests](https://github.com/openemr/openemr/pulls) - a corrected stage, keeping the six-attribute structure and the citation convention intact
 
 **Last Updated:** August 2026
 **License:** GPL v3
