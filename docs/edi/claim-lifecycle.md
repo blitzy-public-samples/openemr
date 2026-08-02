@@ -1029,7 +1029,7 @@ VERIFIED: in commit mode the two passes are invoked one after the other in a sin
 
 When one payer is finished with a claim, the claim has to be offered to the next one. This stage does that, and it is where the cycle re-enters itself at [S2](#stage-s2-claim-selection-and-queueing).
 
-**Entry point.** `SLEOB::arSetupSecondary()` at `src/Billing/SLEOB.php:L271`, called from exactly one place in the documented surface: the cleanup block of the remittance callback, at `interface/billing/sl_eob_process.php:L718`.
+**Entry point.** `SLEOB::arSetupSecondary()` at `src/Billing/SLEOB.php:L271`, called from one place on the remittance path: the cleanup block of the remittance callback, at `interface/billing/sl_eob_process.php:L718`. VERIFIED: two callers exist off that path, and they are named here so the count is not read as a global one - the invoice screen's secondary-billing checkbox, at `interface/billing/sl_eob_invoice.php:L405` and `interface/billing/sl_eob_invoice.php:L432`, and the patient payment path, at `library/payment.inc.php:L219`, which computes its own next level first and calls only when that level resolves to a payer, at `library/payment.inc.php:L212-L219`. Neither belongs to this stage; what the first of them can do to a fully billed encounter is registered in [defect-candidates.md](defect-candidates.md).
 
 VERIFIED: reaching it requires four conditions to hold at once, all tested at `interface/billing/sl_eob_process.php:L697` and `interface/billing/sl_eob_process.php:L717` - no error was raised for the claim, the run is not a dry run, every existing service item on the invoice received some response, and the remittance being posted is from the primary payer with a secondary payer on file for the service date.
 
