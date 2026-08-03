@@ -248,10 +248,12 @@ That is `src/Billing/SLEOB.php:L285-L286`. PHP binds the conjunction tighter tha
 - **Severity:** HIGH
 
 ```php
-if ($claim->getPartner() === $row['id']) {
+foreach ($context['claims'] as $claim) {
+    if ($claim->getPartner() === $row['id']) {
+        $lastClaim = $claim;
 ```
 
-That is `src/Billing/BillingProcessor/Tasks/GeneratorX12Direct.php:L134`. The loop around it is `src/Billing/BillingProcessor/Tasks/GeneratorX12Direct.php:L133-L137`.
+That is `src/Billing/BillingProcessor/Tasks/GeneratorX12Direct.php:L133-L135`. The loop closes at `src/Billing/BillingProcessor/Tasks/GeneratorX12Direct.php:L137`.
 
 ### DC-4 A deposit counts as fully allocated only for two exact strings
 
@@ -264,9 +266,11 @@ That is `src/Billing/BillingProcessor/Tasks/GeneratorX12Direct.php:L134`. The lo
 
 ```php
 if ($row['global_amount'] === '0' || $row['global_amount'] === '0.00') {
+    $str_html .= " fully allocated";
+} else {
 ```
 
-That is `library/edihistory/edih_io.php:L740`. The column it tests is declared at `sql/database.sql:L10169`.
+That is `library/edihistory/edih_io.php:L740-L742`. The column it tests is declared at `sql/database.sql:L10169`.
 
 ### DC-5 The duplicate deposit probe searches for a reference the writer never stores
 
@@ -279,9 +283,11 @@ That is `library/edihistory/edih_io.php:L740`. The column it tests is declared a
 
 ```php
 $records = QueryUtils::fetchRecords("select reference from ar_session where reference=?", [$out['check_number' . $check_count]]);
+
+if (!empty($records)) {
 ```
 
-That is `interface/billing/sl_eob_process.php:L241`. The value the writer actually stores is built at `src/Billing/SLEOB.php:L102`.
+That is `interface/billing/sl_eob_process.php:L241-L243`. The value the writer actually stores is built at `src/Billing/SLEOB.php:L102`.
 
 ### DC-6 A seven character procedure code is split into a code and a modifier
 
@@ -310,10 +316,12 @@ That is `src/Billing/ParseERA.php:L371-L373`.
 - **Severity:** MEDIUM
 
 ```php
+$sqlBindArray = [];
+array_push($sqlBindArray, $patient_id, $encounter_id);
 if ($crossover <> 1) {
 ```
 
-That is `src/Billing/BillingUtilities.php:L1685`. The two branches it selects are `src/Billing/BillingUtilities.php:L1687-L1695` and `src/Billing/BillingUtilities.php:L1696-L1704`.
+That is `src/Billing/BillingUtilities.php:L1683-L1685`. The two branches it selects are `src/Billing/BillingUtilities.php:L1687-L1695` and `src/Billing/BillingUtilities.php:L1696-L1704`.
 
 ### DC-8 Envelope validity is decided by truth-testing positions against an assumed terminator
 
@@ -341,10 +349,12 @@ That is `src/Billing/EdiHistory/X12File.php:L330-L331`. The same shape is repeat
 - **Severity:** MEDIUM
 
 ```php
+// removing inversion for CO*144 MIPS incentive adjustment to prevent claim balancing
 if ($seg[1] == 'CO' && $seg[$k + 1] < 0 && $seg[$k] !== '144') {
+    $out['warnings'] .= "Negative Contractual Obligation adjustment " .
 ```
 
-That is `src/Billing/ParseERA.php:L402`. The exemption is the third term.
+That is `src/Billing/ParseERA.php:L401-L403`. The exemption is the third term.
 
 ### DC-62 A corrected retransmission is refused and excluded by filename alone
 
@@ -379,9 +389,10 @@ Nine entries about arithmetic on money: which dollars belong in a sum, how a sum
 
 ```php
 $accounted = $acctng['pmt'] + $acctng['clmadj'] + $acctng['svcadj'] + $acctng['svcptrsp'] + $acctng['plbadj'];
+return (int) round($acctng['fee'] * 100) === (int) round($accounted * 100);
 ```
 
-That is `src/Billing/EdiHistory/RemitAccounting.php:L29`. The excluded term in the parser is the branch at `src/Billing/ParseERA.php:L429-L440`.
+That is `src/Billing/EdiHistory/RemitAccounting.php:L29-L30`. The excluded term in the parser is the branch at `src/Billing/ParseERA.php:L429-L440`.
 
 ### DC-11 Forced balancing overwrites the service payment the payer reported
 
@@ -395,9 +406,11 @@ That is `src/Billing/EdiHistory/RemitAccounting.php:L29`. The excluded term in t
 
 ```php
 $out['svc'][0]['paid'] += $paytotal;
+if ($adjtotal) {
+    $j = count($out['svc'][0]['adj']);
 ```
 
-That is `src/Billing/ParseERA.php:L65`. The warning that would have reported it is inert at `src/Billing/ParseERA.php:L74-L78`.
+That is `src/Billing/ParseERA.php:L65-L67`. The warning that would have reported it is inert at `src/Billing/ParseERA.php:L74-L78`.
 
 ### DC-12 The balancing residue is attributed to a group code the payer never sent
 
@@ -426,10 +439,11 @@ That is `src/Billing/ParseERA.php:L69-L70`. The trailing comment on the first li
 - **Severity:** MEDIUM
 
 ```sql
+`x12_partner_id` int(11) NOT NULL default '0',
 `submitted_claim` text COMMENT 'This claims form claim data',
 ```
 
-That is `sql/database.sql:L391`. MySQL caps this type at 65,535 bytes.
+That is `sql/database.sql:L390-L391`. MySQL caps this type at 65,535 bytes.
 
 ### DC-14 The deposit balance check is a float subtraction reported only in a browser alert
 
@@ -442,9 +456,11 @@ That is `sql/database.sql:L391`. MySQL caps this type at 65,535 bytes.
 
 ```php
 if (($pay_total - $pay_amount) <> 0) {
+    $StringIssue .= $key . ' ';
+    $StringPrint = 'Yes';
 ```
 
-That is `interface/billing/sl_eob_process.php:L866`. The only report of the result is the alert at `interface/billing/sl_eob_process.php:L873-L875`.
+That is `interface/billing/sl_eob_process.php:L866-L868`. The only report of the result is the alert at `interface/billing/sl_eob_process.php:L873-L875`.
 
 ### DC-15 A non numeric adjustment amount becomes zero in two places
 
@@ -608,9 +624,11 @@ That is `interface/billing/sl_eob_process.php:L322-L323`. The two variables not 
 
 ```php
 $error = $inverror;
+
+// create array of cpts and mods for complex matching
 ```
 
-That is `interface/billing/sl_eob_process.php:L433`. It is raised at `interface/billing/sl_eob_process.php:L491`, `interface/billing/sl_eob_process.php:L504` and `interface/billing/sl_eob_process.php:L641`, and never lowered.
+That is `interface/billing/sl_eob_process.php:L433-L435`. It is raised at `interface/billing/sl_eob_process.php:L491`, `interface/billing/sl_eob_process.php:L504` and `interface/billing/sl_eob_process.php:L641`, and never lowered.
 
 ### DC-25 The check date computed in the first pass is discarded
 
@@ -622,10 +640,12 @@ That is `interface/billing/sl_eob_process.php:L433`. It is raised at `interface/
 - **Severity:** MEDIUM
 
 ```php
-$check_date = $out['check_date' . $check_count] ?: $_REQUEST['paydate'];
+if (isset($_REQUEST['chk' . $chk_num])) {
+    $check_date = $out['check_date' . $check_count] ?: $_REQUEST['paydate'];
+    $post_to_date = $_REQUEST['post_to_date'] ?: date('Y-m-d');
 ```
 
-That is `interface/billing/sl_eob_process.php:L274`. The call three lines below reads the raw parsed value again, at `interface/billing/sl_eob_process.php:L280`.
+That is `interface/billing/sl_eob_process.php:L273-L275`. The call that begins at `interface/billing/sl_eob_process.php:L277` reads the raw parsed value again, at `interface/billing/sl_eob_process.php:L280`.
 
 ### DC-26 The delimiter probe can only run on the first segment of the interchange
 
@@ -654,7 +674,7 @@ Sixteen entries. A branch is dead here in one of three ways: it is written and t
 - **Evidence:** `src/Billing/BillingProcessor/X12RemoteTracker.php:L112-L121`. VERIFIED: `if (false === $sftp->put($x12_remote['x12_filename'], $claim_file_contents)) {` at `:L112` sets the upload-error status at `:L113`, appends the failure message at `:L114` and the transport's own errors at `:L115`, persists the row at `:L116`, and the block closes at `:L117`. VERIFIED: `:L120` then sets `$x12_remote['status'] = self::STATUS_SUCCESS;` unconditionally and `:L121` persists it. There is no `else`, no `continue` and no `return` between the two writes. VERIFIED: the four earlier failure branches in the same loop, at `:L70`, `:L85`, `:L96` and `:L104`, do continue past the row rather than falling through.
 - **Why it looks wrong:** Four failure paths in the same method exit the iteration and the fifth does not, so the pattern the author established is broken in exactly one place. The error status and its messages are written to the database and then replaced within two statements, which no reading of the code makes deliberate. INFERRED (confidence: High). Basis: the four sibling branches establish the intended shape, and the messages written at `:L114-L115` are recorded specifically so that a human can read them, which is pointless if the row is immediately marked successful.
 - **Observable symptom:** An undelivered transmission is displayed as delivered. The transport queue shows the row with a success badge, because the badge map at `interface/billing/billing_tracker.php:L83-L84` gives a distinct variant only to the success and waiting statuses and the stored status is now success. What is not lost is the failure text. `update()` at `src/Billing/BillingProcessor/X12RemoteTracker.php:L165-L167` receives the row as a by-value array and encodes only the copy it was handed, so the messages appended at `:L114-L115` are still an array in the caller when `:L121` persists the row again, and that second write replaces the status field alone. Those messages are returned to the browser at `library/ajax/billing_tracker_ajax.php:L50` and rendered as informational alert blocks by the row-detail formatter at `interface/billing/billing_tracker.php:L143-L147`, which runs only when an operator clicks to expand that row, at `interface/billing/billing_tracker.php:L174-L187`. The screen therefore asserts success and carries the evidence of failure at the same time, and nothing about a row presenting itself as successful invites the click that would reveal it. The practice believes the claims were filed, and the absence is discovered only when no remittance arrives and the timely-filing window has narrowed.
-- **Verification:** No double can be injected into this path as it stands, so this entry gives a reproduction in place of a test and states the one change a test would need. VERIFIED: `sftpSendWaitingFiles()` is declared `public static` with no parameters at `src/Billing/BillingProcessor/X12RemoteTracker.php:L55` and constructs every collaborator it uses inline - the tracker at `:L57`, the cryptography service at `:L59` and the transport client at `:L89` - so there is no constructor argument, no setter, no factory and no protected creation method for a test to override, and the row it acts on is fetched from the database at `:L58`. Neither of the two billing stubs in the repository helps, because both stand in for classes that are handed to their callers rather than for classes a method instantiates for itself. The reproduction is an integration run and needs no clearinghouse account: point a trading partner at a local SFTP server, queue one batch with the transport switch on, arrange for the upload to fail while the login at `:L91` and the directory change at `:L99` both succeed, run the background service at `library/billing_sftp_service.php:L26`, then read that row of `x12_remote_tracker` and expand it on the billing tracker screen. Expected is a row carrying the upload-error status with the failure text beneath it; actual is a row carrying the success status with the same failure text beneath it, which is what makes it self-contradictory rather than merely wrong. INFERRED (confidence: High) on how to arrange that failure: a remote directory the login user may enter but not write to is the ordinary way to make `put()` at `:L112` return false while the two earlier calls succeed. Basis: the branch is entered on a literal `false` from that call and a server-refused write is the common cause, but the return contract belongs to the locked transport library, phpseclib/phpseclib 3.0.55 at `composer.lock:L7743-L7745`, whose vendor tree is absent from the checkout these documents were written against and so was not read. The unit test is blocked on exactly one change, and naming it is the point rather than a deferral: give the method a way to receive its tracker and its transport client, whether as an optional injected pair or as protected factory methods a subclass can override. With that seam in place a case in `tests/Tests/Isolated/Billing/X12RemoteTrackerTransportTest.php` under `phpunit-isolated.xml` can supply a client whose `put()` returns false and a tracker that records every status passed to `update()`, then assert the recorded sequence and the final message list with no database and no network at all. That change is a modification to production code and therefore outside this register, which documents and fixes nothing. Stage [S6](claim-lifecycle.md#stage-s6-transport-to-the-clearinghouse) is where the row is written.
+- **Verification:** No double can be injected into this path as it stands, so this entry gives a reproduction in place of a test. VERIFIED: `sftpSendWaitingFiles()` is declared `public static` with no parameters at `src/Billing/BillingProcessor/X12RemoteTracker.php:L55` and constructs every collaborator it uses inline - the tracker at `:L57`, the cryptography service at `:L59` and the transport client at `:L89` - so there is no constructor argument, no setter, no factory and no protected creation method for a test to override, and the row it acts on is fetched from the database at `:L58`. Neither of the two billing stubs in the repository helps, because both stand in for classes that are handed to their callers rather than for classes a method instantiates for itself. The reproduction is an integration run and needs no clearinghouse account: point a trading partner at a local SFTP server, queue one batch with the transport switch on, arrange for the upload to fail while the login at `:L91` and the directory change at `:L99` both succeed, run the background service at `library/billing_sftp_service.php:L26`, then read that row of `x12_remote_tracker` and expand it on the billing tracker screen. Expected is a row carrying the upload-error status with the failure text beneath it; actual is a row carrying the success status with the same failure text beneath it, which is what makes it self-contradictory rather than merely wrong. INFERRED (confidence: High) on how to arrange that failure: a remote directory the login user may enter but not write to is the ordinary way to make `put()` at `:L112` return false while the two earlier calls succeed. Basis: the branch is entered on a literal `false` from that call and a server-refused write is the common cause, but the return contract belongs to the locked transport library, phpseclib/phpseclib 3.0.55 at `composer.lock:L7743-L7745`, whose vendor tree is absent from the checkout these documents were written against and so was not read. No unit-level route to this defect exists as the code stands, and the reproduction above is therefore the whole of what this register offers for it: the register documents and repairs nothing, so it neither proposes nor makes any change to the production signatures that would make one possible. Stage [S6](claim-lifecycle.md#stage-s6-transport-to-the-clearinghouse) is where the row is written.
 - **Severity:** CRITICAL
 - **Registered as a rule:** [BR-F3](business-rules.md#br-f3-a-failed-transmission-is-recorded-as-a-success).
 
@@ -688,7 +708,7 @@ That is `src/Billing/ParseERA.php:L467-L468`. The segment this rejects is render
 - **Evidence:** `src/Billing/BillingProcessor/X12RemoteTracker.php:L119-L120`. VERIFIED: the comment reads that the status changes from waiting to in-progress and the next statement is `$x12_remote['status'] = self::STATUS_SUCCESS;`. VERIFIED: the identical comment twelve lines above, at `:L107`, is accurate, because `:L108` does set the in-progress status.
 - **Why it looks wrong:** The comment is a copy of a correct comment placed above a statement that does something else, which is the fingerprint of a block pasted and half-edited. Under the source-of-truth ordering this document inherits from [README.md](README.md), the code wins and the comment is evidence of intent only, and the intent it evidences is a status transition that was never written. INFERRED (confidence: High). Basis: the comment at `:L107` and the comment at `:L119` are byte-identical while the statements beneath them differ.
 - **Observable symptom:** A maintainer reading the method believes the second write is a progress marker and does not see that it is the write that hides the failure recorded five lines earlier, which is why [DC-27](#dc-27-a-failed-upload-is-recorded-and-then-overwritten-with-success) has survived. The operator-visible symptom is the one described in that entry.
-- **Verification:** A comment cannot be asserted, but the transition it claims can be, and the route that runs today is a reproduction rather than a test. On a disposable non-production instance, and against a controlled SFTP server you have stood up for the purpose on the loopback interface - never a trading partner's host, and configured with dummy credentials, per [Reproduction safety](#reproduction-safety) - enable the automatic transport global read at `library/billing_sftp_service.php:L25`, queue one batch built from a synthetic claim so that a row enters at the waiting status, run the service at `library/billing_sftp_service.php:L26` so that the local server accepts the upload, and read the status column of that row in `x12_remote_tracker` once the run completes: the expected value on the comment's reading is the in-progress status, the actual value is the success status. A test would assert the whole sequence rather than its endpoint, and it is blocked on the same missing seam as [DC-27](#dc-27-a-failed-upload-is-recorded-and-then-overwritten-with-success). VERIFIED: `sftpSendWaitingFiles()` takes no parameters at `src/Billing/BillingProcessor/X12RemoteTracker.php:L55` and builds its own tracker at `:L57`, so nothing outside the method can observe the values passed to `update()`, and the row it works on comes from the database at `:L58`. With that seam in place a case in `tests/Tests/Isolated/Billing/X12RemoteTrackerTransportTest.php` under `phpunit-isolated.xml` could supply a tracker that appends every status it is handed and then assert the recorded sequence with no database and no network: the sequence the two comments together describe is the in-progress status written twice, and the actual sequence is the in-progress status written once at `src/Billing/BillingProcessor/X12RemoteTracker.php:L109` and the success status written at `src/Billing/BillingProcessor/X12RemoteTracker.php:L121`. This is row 2 of the thirteen-entry comment-versus-code census in [README.md](README.md), which lists all thirteen rows in full; it is also the row whose inclusion makes that census thirteen rather than twelve, as the index reconciles.
+- **Verification:** A comment cannot be asserted, but the transition it claims can be, and the route that runs today is a reproduction rather than a test. On a disposable non-production instance, and against a controlled SFTP server you have stood up for the purpose on the loopback interface - never a trading partner's host, and configured with dummy credentials, per [Reproduction safety](#reproduction-safety) - enable the automatic transport global read at `library/billing_sftp_service.php:L25`, queue one batch built from a synthetic claim so that a row enters at the waiting status, run the service at `library/billing_sftp_service.php:L26` so that the local server accepts the upload, and read the status column of that row in `x12_remote_tracker` once the run completes: the expected value on the comment's reading is the in-progress status, the actual value is the success status. Asserting the whole sequence rather than its endpoint has the same absence of an observable route as [DC-27](#dc-27-a-failed-upload-is-recorded-and-then-overwritten-with-success). VERIFIED: `sftpSendWaitingFiles()` takes no parameters at `src/Billing/BillingProcessor/X12RemoteTracker.php:L55` and builds its own tracker at `:L57`, so nothing outside the method can observe the values passed to `update()`, and the row it works on comes from the database at `:L58`. What the sequence is can still be read from the source, which is what the reproduction's endpoint check confirms: the sequence the two comments together describe is the in-progress status written twice, and the sequence the code writes is the in-progress status once at `src/Billing/BillingProcessor/X12RemoteTracker.php:L109` and the success status at `src/Billing/BillingProcessor/X12RemoteTracker.php:L121`. This is row 2 of the thirteen-entry comment-versus-code census in [README.md](README.md), which lists all thirteen rows in full; it is also the row whose inclusion makes that census thirteen rather than twelve, as the index reconciles.
 - **Severity:** MEDIUM
 
 ```php
@@ -708,10 +728,12 @@ That is `src/Billing/BillingProcessor/X12RemoteTracker.php:L119-L120`. The ident
 - **Severity:** MEDIUM
 
 ```php
+const STATUS_IN_PROGRESS = 'in-progress';
 const STATUS_UPLOAD_ERRROR = 'upload-error';
+const STATUS_SUCCESS = 'success';
 ```
 
-That is `src/Billing/BillingProcessor/X12RemoteTracker.php:L30`. Its seven siblings are declared at `src/Billing/BillingProcessor/X12RemoteTracker.php:L24-L31`.
+That is `src/Billing/BillingProcessor/X12RemoteTracker.php:L29-L31`. Its seven siblings are declared at `src/Billing/BillingProcessor/X12RemoteTracker.php:L24-L31`.
 
 ### DC-31 The dry run branch of the deposit writer returns nothing
 
@@ -741,10 +763,12 @@ That is `src/Billing/SLEOB.php:L98-L100`. The else branch returns at `src/Billin
 - **Registered as a rule:** [BR-F9](business-rules.md#br-f9-the-institutional-generator-always-declares-the-claim-chargeable).
 
 ```php
+"*" . date('Hi', $today) .            // transaction creation time
 (($encounter_claim ?? null) ? "*RP" : "*CH") .  // RP = reporting, CH = chargeable
+"~\n";
 ```
 
-That is `src/Billing/X125010837I.php:L89`. The signature that does not declare the variable is `src/Billing/X125010837I.php:L26`.
+That is `src/Billing/X125010837I.php:L88-L90`. The signature that does not declare the variable is `src/Billing/X125010837I.php:L26`.
 
 ### DC-33 The institutional claim can never carry the alternate payer identifier
 
@@ -756,10 +780,12 @@ That is `src/Billing/X125010837I.php:L89`. The signature that does not declare t
 - **Severity:** HIGH
 
 ```php
+"*" . "PI" .
 "*" . (($encounter_claim ?? null) ? $claim->payerAltID() : $claim->payerID()) .
+"~\n";
 ```
 
-That is `src/Billing/X125010837I.php:L283`. The professional generator makes the same choice from a declared parameter at `src/Billing/X125010837P.php:L525`.
+That is `src/Billing/X125010837I.php:L282-L284`. The professional generator makes the same choice from a declared parameter at `src/Billing/X125010837P.php:L525`.
 
 ### DC-34 A claim level name segment matches every qualifier and does nothing
 
@@ -788,9 +814,10 @@ That is `src/Billing/ParseERA.php:L316-L317`. The five branches above it each te
 
 ```php
 public static function arPostCharge($patient_id, $encounter_id, $session_id, $amount, $units, $thisdate, $code, $description, $debug, $codetype = '')
+{
 ```
 
-That is `src/Billing/SLEOB.php:L165`. The three parameters never read are the third, the sixth and the ninth, and the insert that ends this path writes the date column as `NOW()` at `src/Billing/BillingUtilities.php:L1470`.
+That is `src/Billing/SLEOB.php:L165-L166`. The three parameters never read are the third, the sixth and the ninth, and the insert that ends this path writes the date column as `NOW()` at `src/Billing/BillingUtilities.php:L1470`.
 
 ### DC-36 The dry run path of the re billing helper does nothing and says nothing
 
@@ -835,10 +862,11 @@ That is `src/Billing/X125010837P.php:L1613-L1614`. The header's condition, at `s
 - **Severity:** HIGH
 
 ```php
+// Based on UI form input, get the claims we actually need to bill
 $claims = $this->prepareClaims($processing_task->getAction());
 ```
 
-That is `src/Billing/BillingProcessor/BillingProcessor.php:L84`. The chain that can return null ends without an else at `src/Billing/BillingProcessor/BillingProcessor.php:L191-L192`.
+That is `src/Billing/BillingProcessor/BillingProcessor.php:L83-L84`. The chain that can return null ends without an else at `src/Billing/BillingProcessor/BillingProcessor.php:L191-L192`.
 
 ### DC-39 The tertiary payer is never queued from the posting screen
 
@@ -850,10 +878,12 @@ That is `src/Billing/BillingProcessor/BillingProcessor.php:L84`. The chain that 
 - **Severity:** HIGH
 
 ```php
+// Check for secondary insurance.
 if ($primary && SLEOB::arGetPayerID($pid, $service_date, 2)) {
+    SLEOB::arSetupSecondary($pid, $encounter, $debug, $out['crossover']);
 ```
 
-That is `interface/billing/sl_eob_process.php:L717`. The second term asks for payer type two specifically.
+That is `interface/billing/sl_eob_process.php:L716-L718`. The second term asks for payer type two specifically.
 
 ### DC-63 The institutional disposal screen discards the one value the claim updater uses to report failure
 
@@ -883,9 +913,11 @@ That is `interface/billing/ub04_dispose.php:L93-L95`. The return value is used f
 
 ```php
 public function createTRN($row, $tracno, $refiden, $X12info, $segTer, $compEleSep)
+{
+    $TRN = [];
 ```
 
-That is `src/Billing/EDI270.php:L223`. The constructor that would be needed to reach it is private, at `:L46`.
+That is `src/Billing/EDI270.php:L223-L225`. The constructor that would be needed to reach it is private, at `:L46`.
 
 ### DC-65 A transaction set rejected without a segment error is recorded nowhere
 
@@ -950,10 +982,12 @@ That is `src/Billing/BillingProcessor/BillingClaimBatch.php:L216-L217`. The leng
 - **Severity:** HIGH
 
 ```php
-$this->bat_content .= substr_replace($seg, '*' . "1" . '*', strpos((string) $seg, '*0123*'), 6);
+if ($elems[0] == 'BHT') {
+    // needle is set in OpenEMR\Billing\X125010837P
+    $this->bat_content .= substr_replace($seg, '*' . "1" . '*', strpos((string) $seg, '*0123*'), 6);
 ```
 
-That is `src/Billing/BillingProcessor/BillingClaimBatch.php:L254`. A search that finds nothing yields `false`, which is offset zero.
+That is `src/Billing/BillingProcessor/BillingClaimBatch.php:L252-L254`. A search that finds nothing yields `false`, which is offset zero.
 
 ### DC-43 A claim level adjustment that arrives after a service line lands on that line
 
@@ -982,9 +1016,11 @@ That is `src/Billing/ParseERA.php:L275-L276`. The service-level branch at `src/B
 
 ```php
 } elseif ($segid == 'NM1' && $seg[1] == 'QC' && $out['loopid'] == '2100') { // QC = Patient
+    $out['patient_lname'] = trim($seg[3]);
+    $out['patient_fname'] = trim($seg[4]);
 ```
 
-That is `src/Billing/ParseERA.php:L296`. The guarded convention the same function uses elsewhere is visible at `src/Billing/ParseERA.php:L299`.
+That is `src/Billing/ParseERA.php:L296-L298`. The guarded convention the same function uses elsewhere is visible at `src/Billing/ParseERA.php:L299`.
 
 ### DC-45 Unterminated bytes after the interchange trailer are discarded and the parse reports success
 
@@ -1029,10 +1065,12 @@ That is `src/Billing/X125010837I.php:L1213-L1214`. The headers these close are d
 - **Severity:** MEDIUM
 
 ```php
+}
+
 $this->bat_content .= "IEA" . "*" . $this->bat_gscount . "*" . $this->bat_icn . "~";
 ```
 
-That is `src/Billing/BillingProcessor/BillingClaimBatch.php:L278`. The group trailer above it is guarded at `src/Billing/BillingProcessor/BillingClaimBatch.php:L274`.
+That is `src/Billing/BillingProcessor/BillingClaimBatch.php:L276-L278`. The group trailer above it is guarded at `src/Billing/BillingProcessor/BillingClaimBatch.php:L274`.
 
 ### DC-48 The transaction reference is a fixed literal at generation and after the batch rewrite
 
@@ -1044,10 +1082,12 @@ That is `src/Billing/BillingProcessor/BillingClaimBatch.php:L278`. The group tra
 - **Severity:** HIGH
 
 ```php
+"*" . "00" .                               // 00 = original transmission
 "*" . "0123" .                             // reference identification
+"*" . date('Ymd', $today) .           // transaction creation date
 ```
 
-That is `src/Billing/X125010837P.php:L111`. The institutional generator writes the same literal at `src/Billing/X125010837I.php:L86`.
+That is `src/Billing/X125010837P.php:L110-L112`. The institutional generator writes the same literal at `src/Billing/X125010837I.php:L86`.
 
 ### DC-66 The attachment segment is terminated with a bare tilde the batch cannot split on
 
@@ -1092,9 +1132,11 @@ That is `src/Billing/EDI270.php:L299-L300`. The header the trailer is closing to
 
 ```php
 $BHT[3] = "PROVTest600";                //  Submitter Transaction Identifier
+// This information is required by the information Receiver when using Real Time transactions.
+// For BATCH this can be used for optional information.
 ```
 
-That is `src/Billing/EDI270.php:L118`. The comment below it, at `:L119`, states that the receiver requires this information on real-time transactions.
+That is `src/Billing/EDI270.php:L118-L120`. The comment beneath the assignment states that the receiver requires this information on real-time transactions.
 
 ### DC-69 The eligibility response parser assumes three delimiters instead of reading them
 
@@ -1107,9 +1149,11 @@ That is `src/Billing/EDI270.php:L118`. The comment below it, at `:L119`, states 
 
 ```php
 $segments = explode("~", $new);
+
+if (count($segments) < 6) {
 ```
 
-That is `src/Billing/EDI270.php:L957`. The element separator is assumed the same way at `:L967`, and the code table is built with both as literals at `:L930`.
+That is `src/Billing/EDI270.php:L957-L959`. The element separator is assumed the same way at `:L967`, and the code table is built with both as literals at `:L930`.
 
 ### DC-70 Every element of the eligibility response is HTML-escaped before it is inspected
 
@@ -1151,7 +1195,7 @@ That is `src/Billing/EDI270.php:L1113-L1115`. The only read is at `:L1127`, outs
 - **Evidence:** `src/Billing/EDI270.php:L855-L856`. VERIFIED: the content type is taken as `$response->getHeader('Content-Type')[0]` at `:L855` and the content length as `(int)$response->getHeader('Content-Length')[0]` at `:L856`, both immediately after the request at `:L852` and with no guard between. VERIFIED: the first value is passed straight into the multipart parser at `:L858`, whose signature requires it at `:L878`, and the second is the whole basis of the integrity test at `:L857`. VERIFIED: the integrity failure has its own error text at `:L861-L863`, so the case of a length that does not match is handled while the case of no length at all is not.
 - **Why it looks wrong:** The two reads are positional against a collection whose emptiness is the documented representation of an absent header, so a response that simply omits a header is not handled by the error text sitting four lines below it; it is handled by whatever the language does with an index read on an empty array, and then by arithmetic and a parser that were written for strings. VERIFIED: what happens here is that the read is diagnosed and execution continues, because the bootstrap installs an exception handler at `interface/globals.php:L89` and deliberately declines to install an error handler, saying so in the comment immediately below at `interface/globals.php:L90-L92`, and the only `set_error_handler` call in the handler class is inside the method that bootstrap does not call, at `src/Core/ErrorHandler.php:L199`. So neither read raises anything that unwinds; each yields null, and the nulls travel on. The integrity test's existence shows the author was thinking about a length that could be wrong, which makes the absence of a test for a length that is missing the more visible omission. A second consequence follows from the same block and is worth stating because it changes which arm a reader should expect to run: the client is constructed with no options at `:L852`, so its default error handling raises on a non-success status before either read happens, which is why the status arm at `:L864-L866` cannot be reached for the statuses it names. That path is described from the operator's side in [claim-lifecycle.md](claim-lifecycle.md). INFERRED (confidence: Medium). Basis: the vendor tree is absent from this checkout, so the client's default behaviour is asserted from its documented defaults rather than read; the unguarded index reads themselves are verified from the source.
 - **Observable symptom:** The answer is discarded and reported as something it is not, and which of two shapes the report takes depends on which header is missing. VERIFIED: a missing content-length yields null, the cast at `:L856` makes it zero, and the comparison at `:L857` therefore fails for any non-empty body, so the function assembles its own integrity message at `:L861-L863`, appends the payload at `:L871` and returns the accumulated text in place of the 271 eligibility response at `:L872`. VERIFIED: a missing content-type instead reaches the parser at `:L878` as a null argument, and the parser derives its boundary from that argument alone - it destructures a two-element list from a one-element split at `:L883`, indexes element one of another one-element split at `:L884`, and composes its split pattern from the empty result at `:L887` - so the split at `:L888` does not separate the responder's parts on the boundary they were written with, and the map returned at `:L912` is assembled from a single match of the per-field pattern at `:L897`. INFERRED (confidence: High): the error-code read at `:L867` therefore finds nothing and the message the operator gets carries an empty code and an empty description. Basis: the four expected part names cannot all be keys of a map assembled from one match, and none of the four reads is guarded; which single name does survive depends on the responder's part order, which is not a property of this repository and was not executed. VERIFIED: in both shapes the caller detects the marker at `:L498`, diverts the text into the log at `:L499-L500`, leaves the response buffer untouched at `:L502`, and returns the log at `:L511-L513`, so the batch screen prefixes it with a failed-transactions notice at `interface/billing/edi_270.php:L168-L172` and delivers it as a downloaded text file at `interface/billing/edi_270.php:L173-L188`. **VERIFIED: with the site switch `disable_eligibility_log` on, that download does not happen and the failure is silent.** The switch is declared at `library/globals.inc.php:L2090-L2095` and read into the flag passed to the request at `interface/billing/edi_270.php:L165`; with it on the function returns a row count rather than the text, at `src/Billing/EDI270.php:L515`, so the marker test at `interface/billing/edi_270.php:L168` finds nothing in a number, no notice is composed, and the screen goes on to render its result table at `interface/billing/edi_270.php:L462-L464`. So an operator either receives a log calling the payer's own usable payload an integrity failure, or is told nothing at all.
-- **Verification:** The code under test constructs its client inline at `:L852`, so no double can be supplied and no stub in this repository helps; the admissible route is a reproduction against a controlled responder. Point a trading partner's real-time eligibility endpoint at a local responder that returns a 200 with a well-formed multipart body and no content-length header, then send a request from the batch eligibility screen with the eligibility log enabled. Expected is a parsed answer, or at minimum a message naming the missing header; actual is a downloaded log whose text is the integrity-test message followed by the payer's payload prefixed as an error. Repeat with the content-type header omitted for the second half, where the expected result is the same and the actual one is a message with an empty error code. Repeat either case with `disable_eligibility_log` on to observe the silent variant. A unit test of the reads themselves becomes possible only if the client is accepted as an argument, which is the one change that would be needed and which the current signature at `:L776` does not provide; the parser those nulls reach can be pinned today, in `tests/Tests/Isolated/Billing/EDI270Test.php` under `phpunit-isolated.xml`, because it is a static method over two strings at `:L878` and reaches no data layer.
+- **Verification:** The code under test constructs its client inline at `:L852`, so no double can be supplied and no stub in this repository helps; the admissible route is a reproduction against a controlled responder. Point a trading partner's real-time eligibility endpoint at a local responder that returns a 200 with a well-formed multipart body and no content-length header, then send a request from the batch eligibility screen with the eligibility log enabled. Expected is a parsed answer, or at minimum a message naming the missing header; actual is a downloaded log whose text is the integrity-test message followed by the payer's payload prefixed as an error. Repeat with the content-type header omitted for the second half, where the expected result is the same and the actual one is a message with an empty error code. Repeat either case with `disable_eligibility_log` on to observe the silent variant. VERIFIED: a unit test of the reads themselves has no route as the code stands, because the signature at `:L776` accepts no client and the method constructs its own; the parser those nulls reach can be pinned today, in `tests/Tests/Isolated/Billing/EDI270Test.php` under `phpunit-isolated.xml`, because it is a static method over two strings at `:L878` and reaches no data layer.
 - **Severity:** MEDIUM
 
 ```php
@@ -1238,14 +1282,16 @@ That is `src/Billing/BillingProcessor/BillingClaimBatch.php:L220-L221`. The clai
 - **Evidence:** `src/Billing/ParseERA.php:L91`. VERIFIED: the main parse opens the file there and the check-scanning parse opens it again at `:L488`. VERIFIED: the file contains no `fclose` call at all, and the main parse alone carries twenty-three return statements between `:L85` and `:L479`, including the early return at `:L92-L94` and every error return in the segment chain. VERIFIED: the handle variable appears only at `:L91`, `:L92`, `:L103` and `:L104` in the main parse and at `:L488`, `:L489`, `:L500` and `:L501` in the check-scanning parse, and in neither function is it returned, assigned to a property, a global, an array or a static, or captured by a closure.
 - **Why it looks wrong:** A handle opened in a function that returns from twenty-three places needs either a close on each path or a construct that closes it for you, and neither is present. What keeps this from being a leak is nothing the code states: it is that the handle is a function-local whose only reference disappears when the function returns, so the engine releases it there. INFERRED (confidence: High). Basis: the two properties that make the release safe, locality of the variable and the absence of any second reference to it, can be removed by an edit anywhere in either function without touching the open site, and no test asserts either property.
 - **Observable symptom:** Nothing today, and that is worth stating rather than leaving the field to imply otherwise. Because both handles are function-local and neither function calls the other, at most one handle to the remittance file exists at any moment; the two calls the posting screen makes at `interface/billing/sl_eob_process.php:L849-L852` are operands of one concatenation and so are evaluated one after the other, not together. What the missing close does create is a silent dependency: the upload path renames the very file it just parsed, at `interface/billing/era_payments.php:L161` and `:L170`, and those renames are reached only after the parse has returned and the handle has been released by scope exit rather than by the parser. If a later change stores the handle, passes it to a helper, or moves either parse inside a loop that retains its result, the first visible sign is the open-failure message from `src/Billing/ParseERA.php:L92-L94` reported against a remittance file the operator can see is present and readable, with nothing on the screen naming descriptors as the cause.
-- **Verification:** Two cases in `tests/Tests/Isolated/Billing/ParseERATest.php`, both under `phpunit-isolated.xml`, and deliberately of two different kinds, because this defect is static rather than behavioural and only one of the two can fail on it. The first is the case that fails while the defect stands, and it asserts a source property rather than a runtime one precisely because at runtime the handle is released correctly today: read `src/Billing/ParseERA.php` and assert that it contains at least as many `fclose` calls as `fopen` calls. Expected under that invariant is a close for each of the two opens; the statically predicted outcome against the code as written is two opens, at `src/Billing/ParseERA.php:L91` and `src/Billing/ParseERA.php:L488`, against zero closes, so the assertion fails. Nothing else reports it: VERIFIED, the analyser runs at its maximum level over `src/` with no suppression baseline, at `phpstan.neon.dist:L9` and `phpstan.neon.dist:L63`, and both opens are still unclosed, so the condition is outside what static analysis flags here; and no behavioural assertion can detect it either, because the property that makes the current code safe is scope exit rather than any statement. The second case is a portable behavioural guard, and it replaces the `/proc/self/fd` reading an earlier draft of this entry proposed, which would have been Linux-only: call the check-scanning parse, then rename the parsed path, then parse the renamed path, asserting that each step succeeds. That oracle is portable and is strictly stronger on Windows than on Linux, because Windows refuses to rename a file that still has an open handle while Linux permits it, and `phpunit-isolated.xml` is collected on both, by `.github/workflows/isolated-tests.yml:L50` and by `.github/workflows/windows-tests.yml:L105` on the runner declared at `.github/workflows/windows-tests.yml:L28`. Its assertion is statically predicted to hold against the code as it stands, which is why it is labelled a guard rather than a probe: it is the case that fails first if the handle is ever made to outlive the call, and that is the change this entry exists to guard against. This entry stays in the register because a resource opened and never closed is a lifecycle defect and the register carries a lifecycle category, but its latency is real, and the maintainability half of it - a file in which a resource contract is upheld by scope exit alone - is carried independently by the risk row for `src/Billing/ParseERA.php` in [upgrade-risk-map.md](upgrade-risk-map.md), so a reader triaging by risk rather than by defect still meets it.
+- **Verification:** Two cases in `tests/Tests/Isolated/Billing/ParseERATest.php`, both under `phpunit-isolated.xml`, and deliberately of two different kinds, because this defect is static rather than behavioural and only one of the two can fail on it. The first is the case that fails while the defect stands, and it asserts a source property rather than a runtime one precisely because at runtime the handle is released correctly today: read `src/Billing/ParseERA.php` and assert that it contains at least as many `fclose` calls as `fopen` calls. Expected under that invariant is a close for each of the two opens; the statically predicted outcome against the code as written is two opens, at `src/Billing/ParseERA.php:L91` and `src/Billing/ParseERA.php:L488`, against zero closes, so the assertion fails. Nothing else reports it, and the reason is a property of what the analyser looks for rather than of how it is configured here. VERIFIED: the analyser runs at level 10 at `phpstan.neon.dist:L9` over `src/` at `phpstan.neon.dist:L63`, on top of the per-identifier suppression baseline that `phpstan.neon.dist:L2` loads through `.phpstan/phpstan.github.neon:L3` - the same baseline accounted for in [upgrade-risk-map.md](upgrade-risk-map.md). VERIFIED: this condition is not among the findings that baseline holds back, because none of the 168 per-identifier files under `.phpstan/baseline/` corresponds to a resource-lifecycle rule; an unclosed handle is outside what the analyser reports at all here, rather than reported and suppressed. And no behavioural assertion can detect it either, because the property that makes the current code safe is scope exit rather than any statement. The second case is a portable behavioural guard, and it replaces the `/proc/self/fd` reading an earlier draft of this entry proposed, which would have been Linux-only: call the check-scanning parse, then rename the parsed path, then parse the renamed path, asserting that each step succeeds. That oracle is portable and is strictly stronger on Windows than on Linux, because Windows refuses to rename a file that still has an open handle while Linux permits it, and `phpunit-isolated.xml` is collected on both, by `.github/workflows/isolated-tests.yml:L50` and by `.github/workflows/windows-tests.yml:L105` on the runner declared at `.github/workflows/windows-tests.yml:L28`. Its assertion is statically predicted to hold against the code as it stands, which is why it is labelled a guard rather than a probe: it is the case that fails first if the handle is ever made to outlive the call, and that is the change this entry exists to guard against. This entry stays in the register because a resource opened and never closed is a lifecycle defect and the register carries a lifecycle category, but its latency is real, and the maintainability half of it - a file in which a resource contract is upheld by scope exit alone - is carried independently by the risk row for `src/Billing/ParseERA.php` in [upgrade-risk-map.md](upgrade-risk-map.md), so a reader triaging by risk rather than by defect still meets it.
 - **Severity:** MEDIUM
 
 ```php
 $infh = fopen($filename, 'r');
+if (!$infh) {
+    return "ERA input file open failed";
 ```
 
-That is `src/Billing/ParseERA.php:L91`. The second entry point opens the same way at `src/Billing/ParseERA.php:L488`, and the file contains no matching close.
+That is `src/Billing/ParseERA.php:L91-L93`. The second entry point opens the same way at `src/Billing/ParseERA.php:L488`, and the file contains no matching close.
 
 ### DC-51 The claim version is drawn by an unlocked aggregate inside a transaction
 
@@ -1291,9 +1337,11 @@ That is `src/PaymentProcessing/Recorder.php:L204-L206`. The allocation the comme
 
 ```php
 $claim_file_contents = file_get_contents($claim_file);
+if (false === $claim_file_contents) {
+    $x12_remote['status'] = self::STATUS_CLAIM_FILE_ERROR;
 ```
 
-That is `src/Billing/BillingProcessor/X12RemoteTracker.php:L80`. The path it reads was substituted without a second existence test at `src/Billing/BillingProcessor/X12RemoteTracker.php:L76-L78`.
+That is `src/Billing/BillingProcessor/X12RemoteTracker.php:L80-L82`. The path it reads was substituted without a second existence test at `src/Billing/BillingProcessor/X12RemoteTracker.php:L76-L78`.
 
 ### DC-54 A row the transport has claimed is never released or retried
 
@@ -1301,7 +1349,7 @@ That is `src/Billing/BillingProcessor/X12RemoteTracker.php:L80`. The path it rea
 - **Evidence:** `src/Billing/BillingProcessor/X12RemoteTracker.php:L108`. VERIFIED: the in-progress status is written there and persisted at `:L109`. VERIFIED: a repository-wide search for that constant returns exactly two occurrences, its declaration at `:L29` and that one write; nothing reads it, filters on it, or resets it. VERIFIED: `fetchByStatus()` at `:L195-L205` declares the waiting status as its default and is called exactly once, at `:L58`, with the waiting status; rows enter the queue carrying that same status, at `src/Billing/BillingProcessor/BillingClaimBatch.php:L181`; the only two files in the repository that touch the tracking table are this class and the background service; and the only entry point into the path is the call at `library/billing_sftp_service.php:L26`, gated on the global read at `library/billing_sftp_service.php:L25`. VERIFIED: the login-failure branch at `src/Billing/BillingProcessor/X12RemoteTracker.php:L91-L97` and the directory-change failure branch at `src/Billing/BillingProcessor/X12RemoteTracker.php:L99-L105` each record a status and `continue`, while the only `disconnect` call is at `src/Billing/BillingProcessor/X12RemoteTracker.php:L123-L124`, after the upload; the connection object is created inside the loop at `src/Billing/BillingProcessor/X12RemoteTracker.php:L89`, so the same variable is reassigned on the next iteration.
 - **Why it looks wrong:** Claiming a work item is only safe when something can release the claim, and this claim is written to a column no reader consults. The directory-change failure is the sharper of the two connection cases, because it occurs after a successful login and so abandons an authenticated session rather than a failed attempt, and the disconnect at the bottom of the loop shows that explicit closing was intended rather than left to the runtime. INFERRED (confidence: High). Basis: the background service's own docblock at `library/billing_sftp_service.php:L17-L22` describes the path as sending the files that are in the waiting status, so the in-progress status reads as a progress marker written for a reader that was never built rather than as a state the design expected to persist.
 - **Observable symptom:** Under normal control flow the in-progress status survives only a few statements, because `src/Billing/BillingProcessor/X12RemoteTracker.php:L120-L121` replaces it. It persists whenever the request does not reach that line, which a fatal error, a script timeout, or an upload that hangs long enough to be killed will each produce. When it persists the row is stranded: no later run collects it, because the only fetch asks for the waiting status; no screen offers a way to reset it, because nothing outside this class and the background service writes the table; and the billing tracker renders it with the generic warning badge produced by the fallback at `interface/billing/billing_tracker.php:L83-L84`, the same badge every status other than success and waiting receives. The operator sees a batch that is neither queued nor sent nor marked failed, with no action available on the row, while the claims inside it are already marked billed and so cannot be selected again. For the connection half there is nothing observable at the practice, and the earlier reading of this entry was wrong to suggest otherwise: VERIFIED, the object created at `src/Billing/BillingProcessor/X12RemoteTracker.php:L89` is reassigned on the next iteration, so at most one abandoned connection is referenced at any moment and none accumulate across rows. INFERRED (confidence: Low) on what the remote server sees, and this register deliberately leaves it unresolved. Basis: whether the abandoned socket is closed promptly depends on the destructor of the locked transport library, phpseclib/phpseclib 3.0.55 at `composer.lock:L7743-L7745`, and the vendor tree is absent from the checkout these documents were written against, so under the source-of-truth ordering in [README.md](README.md) that code was not read and no claim is made about it.
-- **Verification:** Three routes, because the entry's two halves cost different things and only one of them is executable without first changing production code. The stranding half is executable today, needs no SFTP server and no double, and asserts the exact property the entry rests on. VERIFIED: `fetchByStatus()` declares the waiting status as its default at `src/Billing/BillingProcessor/X12RemoteTracker.php:L195` and is called exactly once in the repository, at `:L58`, with that status, so a row carrying the in-progress status is invisible to every run. Put that case in `tests/Tests/Services/Billing/X12RemoteTrackerTest.php` under the primary configuration, at `phpunit.xml:L14` and `phpunit.xml:L67-L69`, since it needs a data layer both to create the row, through `sqlInsert` at `src/Billing/BillingProcessor/X12RemoteTracker.php:L155`, and to fetch it, through the select helper at `:L197-L202`: insert one row at the in-progress status and one at the waiting status, call `fetchByStatus()` with no argument, and assert what comes back. Expected on a design that can release a claim is that both rows are reachable by some fetch; actual is that only the waiting row is returned, and no other call anywhere in the repository asks for the other, which is the whole of the stranding. The connection half is blocked on the same missing seam as [DC-27](#dc-27-a-failed-upload-is-recorded-and-then-overwritten-with-success). VERIFIED: the transport client is constructed inline at `src/Billing/BillingProcessor/X12RemoteTracker.php:L89`, inside a static method that takes no parameters at `:L55`, so nothing outside the method can count its `disconnect()` calls. With that seam in place a case in `tests/Tests/Isolated/Billing/X12RemoteTrackerTransportTest.php` under `phpunit-isolated.xml` could supply a client that counts those calls together with a tracker standing in for the fetch, queue two rows whose directory change fails, and assert one disconnect per row with no database at all: the expected count is two, the actual count is zero. The reproduction, which needs neither the seam nor a test, is to set the in-progress status by hand on one row of `x12_remote_tracker`, run the background service at `library/billing_sftp_service.php:L26`, and open the billing tracker screen. This is the one reproduction in the entry that starts the real transport, so it carries the transport rule from [Reproduction safety](#reproduction-safety) in full: the stranded row is invisible to the fetch and is therefore never sent, but any *other* waiting row on the same instance will be, which is why the instance must be a disposable one whose partner rows point only at a local server. The observation is then: the expected outcome is that the row is either transmitted or marked failed, the actual outcome is that it is untouched and shows a generic warning badge with no available action.
+- **Verification:** Two routes and a source reading, because the entry's two halves cost different things and only one of them can be asserted as the code stands. The stranding half is executable today, needs no SFTP server and no double, and asserts the exact property the entry rests on. VERIFIED: `fetchByStatus()` declares the waiting status as its default at `src/Billing/BillingProcessor/X12RemoteTracker.php:L195` and is called exactly once in the repository, at `:L58`, with that status, so a row carrying the in-progress status is invisible to every run. Put that case in `tests/Tests/Services/Billing/X12RemoteTrackerTest.php` under the primary configuration, at `phpunit.xml:L14` and `phpunit.xml:L67-L69`, since it needs a data layer both to create the row, through `sqlInsert` at `src/Billing/BillingProcessor/X12RemoteTracker.php:L155`, and to fetch it, through the select helper at `:L197-L202`: insert one row at the in-progress status and one at the waiting status, call `fetchByStatus()` with no argument, and assert what comes back. Expected on a design that can release a claim is that both rows are reachable by some fetch; actual is that only the waiting row is returned, and no other call anywhere in the repository asks for the other, which is the whole of the stranding. The connection half has the same absence of an observable route as [DC-27](#dc-27-a-failed-upload-is-recorded-and-then-overwritten-with-success). VERIFIED: the transport client is constructed inline at `src/Billing/BillingProcessor/X12RemoteTracker.php:L89`, inside a static method that takes no parameters at `:L55`, so nothing outside the method can count its `disconnect()` calls. What the count is can still be read from the source rather than asserted: VERIFIED, the only `disconnect()` call in the file is at `src/Billing/BillingProcessor/X12RemoteTracker.php:L124`, below the `continue` statements at `src/Billing/BillingProcessor/X12RemoteTracker.php:L96` and `src/Billing/BillingProcessor/X12RemoteTracker.php:L104`, so an iteration that leaves at either of those never reaches it and the count for such a row is zero. The reproduction, which needs no test at all, is to set the in-progress status by hand on one row of `x12_remote_tracker`, run the background service at `library/billing_sftp_service.php:L26`, and open the billing tracker screen. This is the one reproduction in the entry that starts the real transport, so it carries the transport rule from [Reproduction safety](#reproduction-safety) in full: the stranded row is invisible to the fetch and is therefore never sent, but any *other* waiting row on the same instance will be, which is why the instance must be a disposable one whose partner rows point only at a local server. The observation is then: the expected outcome is that the row is either transmitted or marked failed, the actual outcome is that it is untouched and shows a generic warning badge with no available action.
 - **Severity:** MEDIUM
 
 ```php
@@ -1384,7 +1432,7 @@ That is `library/edihistory/edih_997_error.php:L327-L328`. The function returns 
 - **Evidence:** `src/Billing/BillingProcessor/BillingClaimBatch.php:L65`. VERIFIED: the constructor sets the batch directory to the site's own outbound directory, and the only caller of the override is the per-insurer generator at `src/Billing/BillingProcessor/Tasks/GeneratorX12Direct.php:L115`, guarded at `:L114`; the batch-wide generator calls it nowhere. VERIFIED: the writer joins that directory to the filename at `src/Billing/BillingProcessor/BillingClaimBatch.php:L159`, so the file lands wherever the batch says. VERIFIED: the queue insert at `src/Billing/BillingProcessor/BillingClaimBatch.php:L178-L183` carries only the partner identifier, the filename, the waiting status and the claim list - no directory. VERIFIED: the transport recovers the directory by joining the queue row to the partner row, at `src/Billing/BillingProcessor/X12RemoteTracker.php:L198`, and composes the path from the partner's configured local directory at `src/Billing/BillingProcessor/X12RemoteTracker.php:L75`, falling back to the site's outbound directory at `:L77` when that path does not exist.
 - **Why it looks wrong:** The one fact that would make the lookup exact - which directory the file was actually written to - is known at insert time and is not recorded, while a value that was never consulted at write time is used to find it. The fallback then hides the mismatch for the common case, which is why the primary path can be wrong for every batch-wide run without anyone noticing. VERIFIED: the fallback target and the batch constructor's default are the same directory, which is why the batch-wide case survives at all. INFERRED (confidence: High). Basis: the comment above the fallback at `src/Billing/BillingProcessor/X12RemoteTracker.php:L73-L74` describes trying both directories as a deliberate accommodation, which is evidence that the divergence was known and worked around rather than resolved.
 - **Observable symptom:** Nothing, for as long as the fallback succeeds - and that is the symptom worth writing down, because it means the configured directory is not in fact where the batch-wide generator's files are found. Where the fallback also misses, the operator sees the queue row stop at the claim-file-error status with the message from `src/Billing/BillingProcessor/X12RemoteTracker.php:L83`, which names the fallback path rather than the path the file was written to, so the message points diagnosis at the wrong directory.
-- **Verification:** Two halves, because only one of them stops short of the network. An earlier draft of this entry asserted that the send is not reached; that was wrong, and the correction matters because it decides where the case can run. VERIFIED: the file-resolution block at `src/Billing/BillingProcessor/X12RemoteTracker.php:L75-L86` skips a row only when the read fails at `src/Billing/BillingProcessor/X12RemoteTracker.php:L80`, taking the `continue` at `src/Billing/BillingProcessor/X12RemoteTracker.php:L85`; whenever either candidate path resolves, the read succeeds and control proceeds to the transport client constructed at `src/Billing/BillingProcessor/X12RemoteTracker.php:L89` and the login at `src/Billing/BillingProcessor/X12RemoteTracker.php:L91`. A scenario that places the file in the fallback directory therefore reaches the network by construction. The half that needs no network is the negative one, and it belongs in `tests/Tests/Services/Billing/X12RemoteTrackerTest.php` under the primary configuration, at `phpunit.xml:L14` and `phpunit.xml:L67-L69`, because the transport's own selection issues a query at `src/Billing/BillingProcessor/X12RemoteTracker.php:L197-L202` and the assertion is about the row it returns: configure a partner whose local directory is a writable temporary directory, write a batch through the batch-wide generator, then remove the file from both candidate directories and drive the send loop. Expected is a recorded failure naming the directory the file was written to; actual is the claim-file-error status persisted at `src/Billing/BillingProcessor/X12RemoteTracker.php:L82-L84` whose message, composed at `src/Billing/BillingProcessor/X12RemoteTracker.php:L83`, names the site's outbound fallback path instead. That asserts the mis-recording without ever reaching the client construction. The positive half - that the primary path is wrong for every batch-wide run and the fallback carries the load - does reach the send, so it is a reproduction rather than a test, and it must run against a local SFTP server on loopback with dummy credentials and never against a trading partner: configure the partner's local directory to a directory the batch never writes to, queue one batch through the batch-wide generator with the transport switch on, run the service at `library/billing_sftp_service.php:L26`, and record which of the two paths the run opened. Expected is the partner's configured directory; actual is the fallback. Replacing that reproduction with a unit assertion is blocked on exactly the seam [DC-27](#dc-27-a-failed-upload-is-recorded-and-then-overwritten-with-success) names: the method takes no parameters at `src/Billing/BillingProcessor/X12RemoteTracker.php:L55` and builds its own client at `src/Billing/BillingProcessor/X12RemoteTracker.php:L89`, so path resolution cannot be injected without a production change, which this register does not make. The neighbouring consequence, that the file is read after the fallback without rechecking, is [DC-53](#dc-53-the-transport-reads-the-claim-file-after-a-fallback-without-rechecking-it).
+- **Verification:** Two halves, because only one of them stops short of the network. An earlier draft of this entry asserted that the send is not reached; that was wrong, and the correction matters because it decides where the case can run. VERIFIED: the file-resolution block at `src/Billing/BillingProcessor/X12RemoteTracker.php:L75-L86` skips a row only when the read fails at `src/Billing/BillingProcessor/X12RemoteTracker.php:L80`, taking the `continue` at `src/Billing/BillingProcessor/X12RemoteTracker.php:L85`; whenever either candidate path resolves, the read succeeds and control proceeds to the transport client constructed at `src/Billing/BillingProcessor/X12RemoteTracker.php:L89` and the login at `src/Billing/BillingProcessor/X12RemoteTracker.php:L91`. A scenario that places the file in the fallback directory therefore reaches the network by construction. The half that needs no network is the negative one, and it belongs in `tests/Tests/Services/Billing/X12RemoteTrackerTest.php` under the primary configuration, at `phpunit.xml:L14` and `phpunit.xml:L67-L69`, because the transport's own selection issues a query at `src/Billing/BillingProcessor/X12RemoteTracker.php:L197-L202` and the assertion is about the row it returns: configure a partner whose local directory is a writable temporary directory, write a batch through the batch-wide generator, then remove the file from both candidate directories and drive the send loop. Expected is a recorded failure naming the directory the file was written to; actual is the claim-file-error status persisted at `src/Billing/BillingProcessor/X12RemoteTracker.php:L82-L84` whose message, composed at `src/Billing/BillingProcessor/X12RemoteTracker.php:L83`, names the site's outbound fallback path instead. That asserts the mis-recording without ever reaching the client construction. The positive half - that the primary path is wrong for every batch-wide run and the fallback carries the load - does reach the send, so it is a reproduction rather than a test, and it must run against a local SFTP server on loopback with dummy credentials and never against a trading partner: configure the partner's local directory to a directory the batch never writes to, queue one batch through the batch-wide generator with the transport switch on, run the service at `library/billing_sftp_service.php:L26`, and record which of the two paths the run opened. Expected is the partner's configured directory; actual is the fallback. Replacing that reproduction with a unit assertion has no route as the code stands, for the same reason as [DC-27](#dc-27-a-failed-upload-is-recorded-and-then-overwritten-with-success): the method takes no parameters at `src/Billing/BillingProcessor/X12RemoteTracker.php:L55` and builds its own client at `src/Billing/BillingProcessor/X12RemoteTracker.php:L89`, so nothing outside the method can substitute or observe the path resolution, and this register changes no production code. The neighbouring consequence, that the file is read after the fallback without rechecking, is [DC-53](#dc-53-the-transport-reads-the-claim-file-after-a-fallback-without-rechecking-it).
 - **Severity:** MEDIUM
 
 ```php
@@ -1401,14 +1449,16 @@ That is `src/Billing/BillingProcessor/X12RemoteTracker.php:L75-L77`. The directo
 - **Evidence:** `src/Billing/BillingProcessor/X12RemoteTracker.php:L75`. VERIFIED: the transport concatenates `$x12_remote['x12_sftp_local_dir']` and `$x12_remote['x12_filename']` with no separator. VERIFIED: the writer at `src/Billing/BillingProcessor/BillingClaimBatch.php:L159` interposes `DIRECTORY_SEPARATOR` between the same two values, and the setter that receives the partner's configured directory stores it verbatim, at `src/Billing/BillingProcessor/BillingClaimBatch.php:L112-L114`. VERIFIED: the constructor's own default is built with `DIRECTORY_SEPARATOR` and no trailing separator, at `src/Billing/BillingProcessor/BillingClaimBatch.php:L65`, which is the form the writer expects and the transport cannot read.
 - **Why it looks wrong:** One value is consumed by two composers with opposite conventions, so no single way of typing it satisfies both: without a trailing separator the writer is correct and the transport looks for a path that cannot exist; with one the transport is correct and the writer produces a doubled separator that the filesystem collapses. The tolerant composer is the one that creates the file and the strict one is the one that has to find it, which is the wrong way round. VERIFIED: the same partner column is read by the transport at `:L75` and by the per-insurer generator at `src/Billing/BillingProcessor/Tasks/GeneratorX12Direct.php:L115`, so both conventions are applied to the identical stored string. INFERRED (confidence: High). Basis: the writer's explicit `DIRECTORY_SEPARATOR` shows the intended form of the stored value, and no validation anywhere normalises the column - the required-field check at `src/Billing/BillingProcessor/X12RemoteTracker.php:L128-L139` tests only that it is non-empty, at `:L133`.
 - **Observable symptom:** For a partner whose local directory is configured without a trailing separator - the form the writer expects - the transport's primary path never exists, so it falls back to the site's outbound directory. Where the per-insurer generator wrote the file into the partner's directory, the fallback misses too, `file_get_contents` returns false at `src/Billing/BillingProcessor/X12RemoteTracker.php:L80-L81`, and the operator sees the queue row stop at the claim-file-error status with a message naming a path in the site's outbound directory - a path the file was never written to and the operator never configured. The batch file itself is intact on disk the whole time.
-- **Verification:** Split the same way as [DC-78](#dc-78-the-transport-looks-for-the-batch-file-in-a-directory-the-batch-never-wrote-to), and for the same corrected reason: the run that succeeds in reading the file continues to the transport client at `src/Billing/BillingProcessor/X12RemoteTracker.php:L89` and the login at `src/Billing/BillingProcessor/X12RemoteTracker.php:L91`, so only the failing run can be asserted without a network. The assertable half is a case in `tests/Tests/Services/Billing/X12RemoteTrackerTest.php` under the primary configuration, at `phpunit.xml:L14` and `phpunit.xml:L67-L69` - the selection is a query, at `src/Billing/BillingProcessor/X12RemoteTracker.php:L197-L202` - exercising one fixture in which the partner's configured local directory carries **no** trailing separator and the file was written by the per-insurer generator into that directory, so neither candidate path resolves. Expected is that the file is found; actual is the claim-file-error status with a message naming a path in the site's outbound directory, and the assertion is on both the status and that path, persisted at `src/Billing/BillingProcessor/X12RemoteTracker.php:L82-L84`. That run stops at the `continue` at `src/Billing/BillingProcessor/X12RemoteTracker.php:L85` and never constructs a client. The paired positive run - the same fixture with a trailing separator, which must find the file and therefore proceeds to the send - is a reproduction against a local SFTP server on loopback with dummy credentials, never a trading partner: assert only that the run gets past file resolution, by observing that the queue row leaves the claim-file-error status, and stop there rather than asserting anything about the upload, which is [DC-27](#dc-27-a-failed-upload-is-recorded-and-then-overwritten-with-success). A single-process assertion covering both runs is blocked on the same missing seam that entry names.
+- **Verification:** Split the same way as [DC-78](#dc-78-the-transport-looks-for-the-batch-file-in-a-directory-the-batch-never-wrote-to), and for the same corrected reason: the run that succeeds in reading the file continues to the transport client at `src/Billing/BillingProcessor/X12RemoteTracker.php:L89` and the login at `src/Billing/BillingProcessor/X12RemoteTracker.php:L91`, so only the failing run can be asserted without a network. The assertable half is a case in `tests/Tests/Services/Billing/X12RemoteTrackerTest.php` under the primary configuration, at `phpunit.xml:L14` and `phpunit.xml:L67-L69` - the selection is a query, at `src/Billing/BillingProcessor/X12RemoteTracker.php:L197-L202` - exercising one fixture in which the partner's configured local directory carries **no** trailing separator and the file was written by the per-insurer generator into that directory, so neither candidate path resolves. Expected is that the file is found; actual is the claim-file-error status with a message naming a path in the site's outbound directory, and the assertion is on both the status and that path, persisted at `src/Billing/BillingProcessor/X12RemoteTracker.php:L82-L84`. That run stops at the `continue` at `src/Billing/BillingProcessor/X12RemoteTracker.php:L85` and never constructs a client. The paired positive run - the same fixture with a trailing separator, which must find the file and therefore proceeds to the send - is a reproduction against a local SFTP server on loopback with dummy credentials, never a trading partner: assert only that the run gets past file resolution, by observing that the queue row leaves the claim-file-error status, and stop there rather than asserting anything about the upload, which is [DC-27](#dc-27-a-failed-upload-is-recorded-and-then-overwritten-with-success). A single-process assertion covering both runs has the same absence of an observable route that entry records.
 - **Severity:** MEDIUM
 
 ```php
-$fh = fopen($this->bat_filedir . DIRECTORY_SEPARATOR . $this->bat_filename, 'a');
+if ($this->bat_filedir !== false) {
+    $fh = fopen($this->bat_filedir . DIRECTORY_SEPARATOR . $this->bat_filename, 'a');
+    if ($fh) {
 ```
 
-That is `src/Billing/BillingProcessor/BillingClaimBatch.php:L159`. The transport composes the same two values without the separator, at `src/Billing/BillingProcessor/X12RemoteTracker.php:L75`.
+That is `src/Billing/BillingProcessor/BillingClaimBatch.php:L158-L160`. The transport composes the same two values without the separator, at `src/Billing/BillingProcessor/X12RemoteTracker.php:L75`.
 
 ### DC-80 A remittance is stored under a name consisting only of its extension
 
