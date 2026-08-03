@@ -260,6 +260,7 @@ All 67 in-scope files appear below, sorted by risk band, then by composed score,
 Coverage cells are paths relative to `tests/Tests/`, which is what makes each one's configuration determinable without a second lookup: a path beginning `Isolated/` runs only under `phpunit-isolated.xml`, a path beginning `Services/` runs under the `services` suite of `phpunit.xml`, and a path beginning `RestControllers/` runs under the `controllers` suite of the same file. The full mapping, and why the distinction matters, is in [Which configuration each covering test runs under](#which-configuration-each-covering-test-runs-under).
 
 Files with nothing notable about them still carry a row, and the sections after the table say so in a line rather than omitting them, because an omitted file is indistinguishable from a file nobody looked at.
+
 | File | Lines | Last substantive change | Commits | Covering tests | Inbound coupling | Risk |
 |------|------:|-------------------------|--------:|----------------|-----------------:|------|
 | `src/Billing/BillingUtilities.php` | 1996 | 2023-06-15 (`40636e7d9`) | 25 | `none` | 31 | **high-risk** (score 11) |
@@ -1116,5 +1117,4 @@ Four measured signals per file - substantive-change recency from a classified `g
 - Escalate a row above its arithmetic only when the defect is cited to a line range in that same file and the row's composed score is below 7, and register the underlying defect in [defect-candidates.md](defect-candidates.md) rather than describing it here.
 
 **Last Updated:** August 2026
-
 **License:** GPL v3

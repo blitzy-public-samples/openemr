@@ -1675,5 +1675,4 @@ Eighty-one entries derived expression by expression from the in-scope revenue cy
 - Re-read a citation before relying on it. Line anchors are relative to the commit named above, and a citation that no longer supports its claim is a defect in this document.
 
 **Last Updated:** August 2026
-
 **License:** GPL v3
