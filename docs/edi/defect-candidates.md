@@ -432,18 +432,17 @@ That is `src/Billing/ParseERA.php:L69-L70`. The trailing comment on the first li
 ### DC-13 The saved institutional claim form is byte-capped and truncated in silence
 
 - **Suspected defect:** The column the claim writer always populates holds 65,535 bytes, the connection runs in a mode that truncates an oversized value instead of refusing it, and nothing on the write path measures the value first. The content at risk is not a generated claim: on the institutional path it is the serialised claim form, and once truncated it cannot be decoded, so the next write replaces it with the encoding of nothing.
-- **Evidence:** `sql/database.sql:L391`. VERIFIED: `` `submitted_claim` text COMMENT 'This claims form claim data' ``, which MySQL caps at 65,535 bytes. VERIFIED: the fragment `", submitted_claim = ?"` is appended to every claim update at `src/Billing/BillingUtilities.php:L1653-L1654`, outside every conditional, and the bound value defaults to the empty string declared as the last parameter at `src/Billing/BillingUtilities.php:L1534`; professional callers pass nothing there, so they store an empty string on every version. VERIFIED: the institutional caller is the only one that stores content, passing `json_encode($this->ub04id)` from `src/Billing/BillingProcessor/Tasks/GeneratorUB04X12.php:L80` as the last argument at `src/Billing/BillingProcessor/Tasks/GeneratorUB04X12.php:L93`, and again on the normal path at `src/Billing/BillingProcessor/Tasks/GeneratorUB04X12.php:L112-L125`; the array is padded to 428 entries at `src/Billing/X125010837I.php:L33-L37`. VERIFIED: the connection issues `SET sql_mode = ''` at `src/BC/DatabaseConnectionFactory.php:L70` and again at `src/BC/DatabaseConnectionFactory.php:L133`, so an over-length value is truncated with a warning rather than rejected. VERIFIED: the stored text is read back at `interface/billing/ub04_dispose.php:L190` and decoded as JSON at `interface/billing/ub04_dispose.php:L207`, inside the branch the non-empty column already selected at `interface/billing/ub04_dispose.php:L205`.
+- **Evidence:** `sql/database.sql:L391`. VERIFIED: the `submitted_claim` column is declared `text`, a type MySQL caps at 65,535 bytes. VERIFIED: the fragment `", submitted_claim = ?"` is appended to every claim update at `src/Billing/BillingUtilities.php:L1653-L1654`, outside every conditional, and the bound value defaults to the empty string declared as the last parameter at `src/Billing/BillingUtilities.php:L1534`; professional callers pass nothing there, so they store an empty string on every version. VERIFIED: the institutional caller is the only one that stores content, passing `json_encode($this->ub04id)` from `src/Billing/BillingProcessor/Tasks/GeneratorUB04X12.php:L80` as the last argument at `src/Billing/BillingProcessor/Tasks/GeneratorUB04X12.php:L93`, and again on the normal path at `src/Billing/BillingProcessor/Tasks/GeneratorUB04X12.php:L112-L125`; the array is padded to 428 entries at `src/Billing/X125010837I.php:L33-L37`. VERIFIED: the connection issues `SET sql_mode = ''` at `src/BC/DatabaseConnectionFactory.php:L70` and again at `src/BC/DatabaseConnectionFactory.php:L133`, so an over-length value is truncated with a warning rather than rejected. VERIFIED: the stored text is read back at `interface/billing/ub04_dispose.php:L190` and decoded as JSON at `interface/billing/ub04_dispose.php:L207`, inside the branch the non-empty column already selected at `interface/billing/ub04_dispose.php:L205`.
 - **Why it looks wrong:** The value's length is a function of how many service lines, diagnoses and free-text fields an encounter carries, and nothing between the caller and the column measures it. The permissive session mode converts what would be a loud failure into a silent one, and the read path then treats whatever came back as complete. INFERRED (confidence: Medium). Basis: no length check exists anywhere on the write path, and the decode at `interface/billing/ub04_dispose.php:L207` has no failure branch, so a partial value and a whole one are indistinguishable to every reader.
 - **Observable symptom:** For a professional claim, nothing: the column receives an empty string on every version and there is nothing to truncate. For an institutional claim whose serialised form exceeds the cap, the loss is silent and then permanent. VERIFIED: the truncated text is no longer valid JSON, so the decode at `interface/billing/ub04_dispose.php:L207` yields null and `get_ub04_array()` returns null from inside the saved-form branch rather than falling through to regenerate the form; the log line it has already appended says the saved edited claim is being used, at `interface/billing/ub04_dispose.php:L206`. The generator then re-encodes that null at `src/Billing/BillingProcessor/Tasks/GeneratorUB04X12.php:L80` and stores the result over the column, so the operator's edited institutional form is replaced by the encoding of nothing. VERIFIED: no message anywhere reports the loss, because neither the read at `interface/billing/ub04_dispose.php:L201-L207` nor the re-encode at `src/Billing/BillingProcessor/Tasks/GeneratorUB04X12.php:L79-L80` tests the decoded value before using it.
 - **Verification:** Add a case to `tests/Tests/Services/Billing/BillingUtilitiesTest.php` that writes a value longer than 65,535 bytes through the claim update path and reads `submitted_claim` back, asserting byte-for-byte equality; it runs under the primary configuration, which covers `tests/Tests/Services` at `phpunit.xml:L67-L69`. The expected result is equality or a refusal, the actual result is a shorter string and no error. A second case, in the same file, passes that truncated string to `get_ub04_array()`: the expected result is either the saved form or a regenerated one, the actual result is null. The reproduction is to open an institutional claim on the UB-04 screen, fill the free-text fields until the serialised form passes the cap, save, and reopen it: the expected outcome is the saved form, the actual outcome is an empty form and a log line claiming the saved one was used.
 - **Severity:** MEDIUM
 
 ```sql
-`x12_partner_id` int(11) NOT NULL default '0',
-`submitted_claim` text COMMENT 'This claims form claim data',
+`submitted_claim` text
 ```
 
-That is `sql/database.sql:L390-L391`. MySQL caps this type at 65,535 bytes.
+That is the column's type declaration at `sql/database.sql:L391`. MySQL caps this type at 65,535 bytes.
 
 ### DC-14 The deposit balance check is a float subtraction reported only in a browser alert
 
@@ -624,11 +623,9 @@ That is `interface/billing/sl_eob_process.php:L322-L323`. The two variables not 
 
 ```php
 $error = $inverror;
-
-// create array of cpts and mods for complex matching
 ```
 
-That is `interface/billing/sl_eob_process.php:L433-L435`. It is raised at `interface/billing/sl_eob_process.php:L491`, `interface/billing/sl_eob_process.php:L504` and `interface/billing/sl_eob_process.php:L641`, and never lowered.
+That is `interface/billing/sl_eob_process.php:L433`. It is raised at `interface/billing/sl_eob_process.php:L491`, `interface/billing/sl_eob_process.php:L504` and `interface/billing/sl_eob_process.php:L641`, and never lowered.
 
 ### DC-25 The check date computed in the first pass is discarded
 
@@ -862,11 +859,10 @@ That is `src/Billing/X125010837P.php:L1613-L1614`. The header's condition, at `s
 - **Severity:** HIGH
 
 ```php
-// Based on UI form input, get the claims we actually need to bill
 $claims = $this->prepareClaims($processing_task->getAction());
 ```
 
-That is `src/Billing/BillingProcessor/BillingProcessor.php:L83-L84`. The chain that can return null ends without an else at `src/Billing/BillingProcessor/BillingProcessor.php:L191-L192`.
+That is `src/Billing/BillingProcessor/BillingProcessor.php:L84`. The chain that can return null ends without an else at `src/Billing/BillingProcessor/BillingProcessor.php:L191-L192`.
 
 ### DC-39 The tertiary payer is never queued from the posting screen
 
@@ -1183,11 +1179,10 @@ That is `src/Billing/EDI270.php:L970-L972`. The dispatch that inspects those ele
 
 ```php
 case 'IEA':
-    // save
     $elog = '';
 ```
 
-That is `src/Billing/EDI270.php:L1113-L1115`. The only read is at `:L1127`, outside the segment loop and unconditional on that case having been entered.
+That is the case label at `src/Billing/EDI270.php:L1113` and the assignment at `src/Billing/EDI270.php:L1115`. The only read is at `:L1127`, outside the segment loop and unconditional on that case having been entered.
 
 ### DC-72 The real-time response reads two header values without proving either header is present
 
@@ -1404,7 +1399,7 @@ That is `interface/billing/billing_process.php:L61-L63`. The body element is clo
 
 ```php
 BillingClaim::STATUS_MARK_AS_BILLED,
-BillingClaim::BILL_PROCESS_IN_PROGRESS, // bill_process == 1 means??
+BillingClaim::BILL_PROCESS_IN_PROGRESS,
 '', // process_file
 ```
 

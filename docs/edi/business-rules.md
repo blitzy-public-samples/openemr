@@ -784,11 +784,11 @@ That is `src/Billing/X125010837P.php:L112-L113`. Both calls format the same time
 
 ```php
 "*" . $claim->x12gsreceiverid() .
-"*" . "030911" .  // dummy data replace by billing_process.php
-"*" . "1630" . // ditto
+"*" . "030911" .
+"*" . "1630" .
 ```
 
-That is `src/Billing/X125010837P.php:L68-L70`. Both values are string literals, and the comment on the first names the script that was expected to replace them.
+That is `src/Billing/X125010837P.php:L68-L70`. Both values are string literals rather than expressions, so nothing inside the generator can put a real interchange date and time at these two positions.
 
 ### BR-E7 The operator's pay date overrides the payer's own dates
 

@@ -223,7 +223,7 @@ VERIFIED: the entire surface is three members. A member census of the file retur
 
 ```php
 class edih_271_codes                                    // :L26
-    private $code271 = [];                              // :L30  not public
+    private $code271 = [];                              // :L30
     function __construct(private $ds, private $dr)      // :L37
     public function get_271_code($elem, $code)          // :L2390
     public function get_keys()                          // :L2428
