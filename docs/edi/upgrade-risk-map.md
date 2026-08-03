@@ -30,12 +30,12 @@ One row per in-scope file answering a single question before you edit it: if I c
     - [library/edihistory/codes/edih_271_code_class.php](#libraryedihistorycodesedih_271_code_classphp)
     - [library/edihistory/edih_csv_parse.php](#libraryedihistoryedih_csv_parsephp)
     - [library/edihistory/edih_archive.php](#libraryedihistoryedih_archivephp)
-    - [library/edihistory/edih_io.php](#libraryedihistoryedih_iophp)
     - [src/Billing/Claim.php](#srcbillingclaimphp)
     - [src/Billing/X125010837P.php](#srcbillingx125010837pphp)
     - [library/edihistory/edih_835_html.php](#libraryedihistoryedih_835_htmlphp)
     - [library/edihistory/edih_csv_data.php](#libraryedihistoryedih_csv_dataphp)
     - [library/edihistory/edih_278_html.php](#libraryedihistoryedih_278_htmlphp)
+    - [library/edihistory/edih_io.php](#libraryedihistoryedih_iophp)
     - [library/edihistory/edih_271_html.php](#libraryedihistoryedih_271_htmlphp)
     - [library/edihistory/edih_uploads.php](#libraryedihistoryedih_uploadsphp)
     - [library/classes/X12Partner.class.php](#libraryclassesx12partnerclassphp)
@@ -492,18 +492,6 @@ VERIFIED: 1,305 lines across 13 functions, beginning at `library/edihistory/edih
 
 INFERRED (confidence: Medium): a mistake in this file would be discovered late rather than immediately, because archival acts on ageing artifacts rather than on the ones currently being processed. Basis: its inputs are selected by age, so a wrongly archived or wrongly retained file is not read again until an operator goes looking for history.
 
-### library/edihistory/edih_io.php
-
-753 lines, coverage `none`, inbound coupling 1, 27 commits, last substantive change 2021-09-05 (`e71a3ff9a`). Composed score 7.
-
-A note on that date, because this row is the one that produced stage three of the classifier and it moves in both directions. VERIFIED: the type-driven stages report `50698f87b creating ParseERA class and updating X12 5010 remit codes (#2056)` of 2018-12-22, and its whole effect on this file is two comment lines re-pointing a reference at the class that replaced a retired include; nothing executable changed, so it is not a behavioural change and stage three discards it. VERIFIED: the keyword stage then discards the next candidate too, `e71a3ff9a fixes for edihistory, remove jquery ui residuals, replace php each function removed in php8 (#4613)` of 2021-09-05, on the PHP version sweep in its subject - and that commit is the exact shape the register exists for. VERIFIED: it touches twelve files, six of them in scope here, and it does three different things across those six. In `library/edihistory/edih_271_html.php` and `library/edihistory/edih_277_html.php` it substitutes a removed loop construct for its one-for-one equivalent and changes nothing else. In `library/edihistory/edih_segments.php` it drops an emphasis wrapper from emitted markup. And in three files it changes a decision: this one, where it excludes a named log file from a directory scan and adds a second string form to a monetary equality test, both of which are decisions this file makes, plus `library/edihistory/edih_csv_inc.php` and `library/edihistory/edih_835_html.php`. Those two need no register entry of their own, because both rows report a 2026 commit and the classifier never walks back as far as 2021 for either. So the register carries the pair for this file, the reported date is 2021-09-05, and the row's volatility point falls from two to one, taking the composed score from 8 to 7. It stays `high-risk`, and the reason it stays is worth stating plainly: the correction moved the date three years later and the row did not become safer, because size, absent coverage and what this file owns are what put it here.
-
-VERIFIED: 753 lines across 15 functions, beginning at `library/edihistory/edih_io.php:L20`, `:L39`, `:L50` and `:L77`.
-
-VERIFIED: **this file contains the only database statement in all 14,979 PHP lines of `library/edihistory/`.** A search for query calls across the whole legacy tree returns exactly one hit, at `library/edihistory/edih_io.php:L737`, which reads the deposit reference and two monetary totals from the accounts-receivable session header. That single statement is correctly parameterised. What follows it is not comparably careful: `library/edihistory/edih_io.php:L739` interpolates the values it just read straight into HTML output without escaping, and `library/edihistory/edih_io.php:L740` decides whether a check has already been posted by comparing a `decimal` column against the strings `'0'` and `'0.00'` with a type-strict comparison, so the decision depends on the textual form the driver happens to return rather than on the numeric value.
-
-That one statement is why the file is high-risk out of proportion to its coupling count of 1: it is the sole seam between a filesystem subsystem and the accounts-receivable ledger, and both the escaping and the comparison on the two lines after it are registered in [defect-candidates.md](defect-candidates.md).
-
 ### src/Billing/Claim.php
 
 2,287 lines, coverage `tests/Tests/Isolated/Billing/ClaimCountMethodsTest.php` marked `narrow`, inbound coupling 6, **53 commits - the highest of any file in `src/Billing/`**, last substantive change 2026-06-18 (`5826c57e3`). Composed score 7, of which 2 points are the narrow-coverage tier, so this row reaches the high-risk band on its own arithmetic and needs no escalation.
@@ -552,6 +540,18 @@ VERIFIED: it is the only rich dedicated HTML renderer for the 278 in the reposit
 - **The index builder**, `edih_278_csv_data()`, declared at `library/edihistory/edih_csv_parse.php:L724` and running to `library/edihistory/edih_csv_parse.php:L953`. VERIFIED: it decodes the request-purpose code carried in the second element of the transaction-opening segment into cancel, request, response and reply at `library/edihistory/edih_csv_parse.php:L802-L817`, the segment being matched at `library/edihistory/edih_csv_parse.php:L794`, and files the result as the index row's authorisation column.
 
 So there is a second and a third interpretation to compare a change against, and a refactor of this file should be assessed against both rather than treated as unilateral - which is a materially different task from having no reference at all. VERIFIED: what none of the three gives is a round trip, because the 278 is handled asymmetrically - parsed and displayed, never generated - as established in [transactions.md](transactions.md). No fixture in the repository pairs a 278 input with an expected rendering, and no test covers any of the three readers, so the check available is a reading of two other implementations rather than an executable one.
+
+### library/edihistory/edih_io.php
+
+753 lines, coverage `none`, inbound coupling 1, 27 commits, last substantive change 2021-09-05 (`e71a3ff9a`). Composed score 7.
+
+A note on that date, because this row is the one that produced stage three of the classifier and it moves in both directions. VERIFIED: the type-driven stages report `50698f87b creating ParseERA class and updating X12 5010 remit codes (#2056)` of 2018-12-22, and its whole effect on this file is two comment lines re-pointing a reference at the class that replaced a retired include; nothing executable changed, so it is not a behavioural change and stage three discards it. VERIFIED: the keyword stage then discards the next candidate too, `e71a3ff9a fixes for edihistory, remove jquery ui residuals, replace php each function removed in php8 (#4613)` of 2021-09-05, on the PHP version sweep in its subject - and that commit is the exact shape the register exists for. VERIFIED: it touches twelve files, six of them in scope here, and it does three different things across those six. In `library/edihistory/edih_271_html.php` and `library/edihistory/edih_277_html.php` it substitutes a removed loop construct for its one-for-one equivalent and changes nothing else. In `library/edihistory/edih_segments.php` it drops an emphasis wrapper from emitted markup. And in three files it changes a decision: this one, where it excludes a named log file from a directory scan and adds a second string form to a monetary equality test, both of which are decisions this file makes, plus `library/edihistory/edih_csv_inc.php` and `library/edihistory/edih_835_html.php`. Those two need no register entry of their own, because both rows report a 2026 commit and the classifier never walks back as far as 2021 for either. So the register carries the pair for this file, the reported date is 2021-09-05, and the row's volatility point falls from two to one, taking the composed score from 8 to 7. It stays `high-risk`, and the reason it stays is worth stating plainly: the correction moved the date three years later and the row did not become safer, because size, absent coverage and what this file owns are what put it here.
+
+VERIFIED: 753 lines across 15 functions, beginning at `library/edihistory/edih_io.php:L20`, `:L39`, `:L50` and `:L77`.
+
+VERIFIED: **this file contains the only database statement in all 14,979 PHP lines of `library/edihistory/`.** A search for query calls across the whole legacy tree returns exactly one hit, at `library/edihistory/edih_io.php:L737`, which reads the deposit reference and two monetary totals from the accounts-receivable session header. That single statement is correctly parameterised. What follows it is not comparably careful: `library/edihistory/edih_io.php:L739` interpolates the values it just read straight into HTML output without escaping, and `library/edihistory/edih_io.php:L740` decides whether a check has already been posted by comparing a `decimal` column against the strings `'0'` and `'0.00'` with a type-strict comparison, so the decision depends on the textual form the driver happens to return rather than on the numeric value.
+
+That one statement is why the file is high-risk out of proportion to its coupling count of 1: it is the sole seam between a filesystem subsystem and the accounts-receivable ledger, and both the escaping and the comparison on the two lines after it are registered in [defect-candidates.md](defect-candidates.md).
 
 ### library/edihistory/edih_271_html.php
 
@@ -1103,7 +1103,9 @@ A final caution about what these commands do and do not establish. They measure 
 
 Compiled by static reading of the OpenEMR source tree and its git history at branch `master`, commit `b7a7e690e419de3451740f995b768a8e8e5fba87`, on project version 8.3.0-dev (`version.php:L17-L20`).
 
-### Method
+### Derivation method
+
+A summary of how this document was derived. The reproducible detail behind it is the [Method](#method) section above.
 
 Four measured signals per file - substantive-change recency from a classified `git log`, test coverage matched by class exercised across all 571 PHP files under `tests/` and graded dedicated or narrow, inbound coupling counted repository-wide under a binding-reference rule applied to code text only, and executable size - composed into a published point table, with escalation applied only where a defect is cited in the same file and the escalation changes the band. Every command used is reproduced in [How to Re-run This Analysis](#how-to-re-run-this-analysis). No code was executed and no test suite was run in the production of this document; claims rest on reading code, schema and history, in the order of precedence defined in [README.md](README.md).
 

@@ -20,6 +20,7 @@ The subsystem named in the title above is OpenEMR's revenue cycle together with 
     - [Generation 2 top level classes in src/Billing](#generation-2-top-level-classes-in-srcbilling)
     - [Generation 2 the batch pipeline](#generation-2-the-batch-pipeline)
     - [Generation 2 the task family](#generation-2-the-task-family)
+    - [Generation 2 the logging trait](#generation-2-the-logging-trait)
     - [Generation 3 the strict typed classes](#generation-3-the-strict-typed-classes)
     - [Generation 1 the legacy edihistory tree](#generation-1-the-legacy-edihistory-tree)
     - [Generation 1 the reachable library classes](#generation-1-the-reachable-library-classes)
@@ -252,7 +253,13 @@ Thirteen files, 1,693 lines, in `src/Billing/BillingProcessor/Tasks/`: eleven co
 | `src/Billing/BillingProcessor/Tasks/TaskReopen.php` | 49 | Concrete, `class` at `src/Billing/BillingProcessor/Tasks/TaskReopen.php:L21` | Reopens claims rather than generating anything: `execute()` at `src/Billing/BillingProcessor/Tasks/TaskReopen.php:L30` calls `BillingUtilities::updateClaim()` with claim status 1 and a bill-process value of 0 at `src/Billing/BillingProcessor/Tasks/TaskReopen.php:L33-L41`, and the utility turns any status of 1 or less into `billed = 0` at `src/Billing/BillingUtilities.php:L1597-L1599` |
 | `src/Billing/BillingProcessor/Tasks/TaskMarkAsClear.php` | 39 | Concrete, `class` at `src/Billing/BillingProcessor/Tasks/TaskMarkAsClear.php:L20` | Marks claims as cleared rather than generating anything: `execute()` at `src/Billing/BillingProcessor/Tasks/TaskMarkAsClear.php:L29` delegates to `clearClaim()` at `src/Billing/BillingProcessor/Tasks/AbstractProcessingTask.php:L47-L58`, which passes claim status 2, and the utility turns status 2 into `billed = 1, bill_date = NOW()` at `src/Billing/BillingUtilities.php:L1592-L1596` |
 
-`src/Billing/BillingProcessor/Traits/WritesToBillingLog.php`, 43 lines, is the single file in `src/Billing/BillingProcessor/Traits/`: the `trait` at `src/Billing/BillingProcessor/Traits/WritesToBillingLog.php:L20` that supplies the default `LoggerInterface` implementation to processing tasks.
+### Generation 2 the logging trait
+
+One file, 43 lines, in `src/Billing/BillingProcessor/Traits/`. It has its own group rather than a row in the table above because it is neither a task nor a pipeline component: it is the default implementation of the logging contract the tasks compose in. VERIFIED: it decides nothing about a claim, because each of its four members either stores the logger or forwards a message to it, at `src/Billing/BillingProcessor/Traits/WritesToBillingLog.php:L24-L42`. It is listed for completeness of the generation map rather than for anything it computes.
+
+| File | Lines | Declaration | Responsibility |
+|------|------:|-------------|----------------|
+| `src/Billing/BillingProcessor/Traits/WritesToBillingLog.php` | 43 | `trait` at `src/Billing/BillingProcessor/Traits/WritesToBillingLog.php:L20` | The default implementation of the four-member logging contract declared at `src/Billing/BillingProcessor/LoggerInterface.php:L17-L26`: it holds the logger through the accessor and mutator at `src/Billing/BillingProcessor/Traits/WritesToBillingLog.php:L24-L32` and forwards the two write calls to it at `src/Billing/BillingProcessor/Traits/WritesToBillingLog.php:L34-L42`. The processor supplies that logger while building the task, at `src/Billing/BillingProcessor/BillingProcessor.php:L198` and only where the task implements the interface at `src/Billing/BillingProcessor/BillingProcessor.php:L197`, inside `buildProcessingTaskFromPost()` at `src/Billing/BillingProcessor/BillingProcessor.php:L150` |
 
 ### Generation 3 the strict typed classes
 
